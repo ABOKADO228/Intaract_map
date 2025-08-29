@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Интерактивная карта</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+    <style>
+        /* Стили остаются примерно теми же, но с улучшениями */
+        #web-content {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+        #map {
+            width: 75%;
+            height: 100vh;
+        }
+        #side-panel {
+            width: 25%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .nav-tree-container {
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+        .point-info-container {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            flex-grow: 1;
+        }
+        /* Остальные стили... */
+    </style>
+</head>
+<body>
+    <div id="web-content">
+        <div id="map"></div>
+        <div id="side-panel">
+            <div class="nav-tree-container">
+                <div class="nav-tree-title">Элементы навигационного дерева:</div>
+                <ul id="nav-tree">
+                    <li class="empty">Добавьте маркеры, чтобы увидеть элементы дерева</li>
+                </ul>
+            </div>
+            <div class="point-info-container">
+                <h3>Информация о точке:</h3>
+                <div id="point-info">Выберите точку на карте или в списке</div>
+            </div>
+        </div>
+    </div>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
+
+    <script>
+        // Инициализация карты
+        var map = L.map('map').setView([55.7558, 37.6173], 12);
+        var markers = L.layerGroup().addTo(map);
+        var markerData = [];
+
+        // Данные точек (заменяются при загрузке)
+        /* {{POINTS_DATA}} */
+
+        var bridge = null;
+
+        // Инициализация WebChannel
+        document.addEventListener("DOMContentLoaded", function() {
+            if (typeof qt !== 'undefined') {
+                new QWebChannel(qt.webChannelTransport, function(channel) {
+                    bridge = channel.objects.bridge;
+                    console.log("WebChannel инициализирован");
+                });
+            } else {
+                console.error("WebChannel не доступен");
+            }
+        });
+
+        // Добавление слоя OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Инициализация точек
+        function initPoints() {
+            if (typeof pointsData !== 'undefined') {
+                pointsData.forEach(function(point) {
+                    addMarker(point.lat, point.lng, point.name, point.id);
+                });
+                updateNavTree();
+            }
+        }
+
+        // Добавление маркера
+        function addMarker(lat, lng, name, id) {
+            var marker = L.marker([lat, lng]).addTo(markers);
+            if (name) {
+                marker.bindPopup(name);
+            }
+
+            // Сохраняем данные маркера
+            var markerInfo = {
+                id: id,
+                lat: lat,
+                lng: lng,
+                name: name,
+                marker: marker
+            };
+
+            markerData.push(markerInfo);
+
+            // Добавляем обработчик клика для показа информации
+            marker.on('click', function() {
+                showPointInfo(markerInfo);
+            });
+
+            updateNavTree();
+            return marker;
+        }
+
+        // Обновление навигационного дерева
+        function updateNavTree() {
+            const navTree = document.getElementById('nav-tree');
+            navTree.innerHTML = '';
+
+            if (markerData.length === 0) {
+                const emptyItem = document.createElement('li');
+                emptyItem.textContent = 'Добавьте маркеры, чтобы увидеть элементы дерева';
+                emptyItem.classList.add('empty');
+                navTree.appendChild(emptyItem);
+                return;
+            }
+
+            markerData.forEach(function(marker, index) {
+                const newItem = document.createElement('li');
+
+                const markerInfo = document.createElement('div');
+                markerInfo.classList.add('marker-info');
+
+                const colorBox = document.createElement('div');
+                colorBox.classList.add('marker-color');
+                colorBox.style.backgroundColor = getRandomColor();
+
+                const itemText = document.createElement('span');
+                itemText.textContent = `${index+1}. ${marker.name}`;
+                itemText.style.cursor = 'pointer';
+                itemText.onclick = function() {
+                    showPointInfo(marker);
+                    map.panTo(marker.marker.getLatLng());
+                    marker.marker.openPopup();
+                };
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Удалить';
+                deleteBtn.classList.add('delete-btn');
+                deleteBtn.onclick = function() {
+                    if (bridge) {
+                        bridge.removePoint(marker.id);
+                    }
+                };
+
+                markerInfo.appendChild(colorBox);
+                markerInfo.appendChild(itemText);
+
+                newItem.appendChild(markerInfo);
+                newItem.appendChild(deleteBtn);
+
+                navTree.appendChild(newItem);
+            });
+        }
+
+        // Показать информацию о точке
+        function showPointInfo(marker) {
+            const pointInfo = document.getElementById('point-info');
+            pointInfo.innerHTML = `
+                <p><strong>Название:</strong> ${marker.name}</p>
+                <p><strong>Координаты:</strong> ${marker.lat.toFixed(6)}, ${marker.lng.toFixed(6)}</p>
+                <p><strong>ID:</strong> ${marker.id}</p>
+            `;
+        }
+
+        // Генерация случайного цвета
+        function getRandomColor() {
+            return '#' + Math.floor(Math.random()*16777215).toString(16);
+        }
+
+        // Удаление маркера
+        function removeMarker(id) {
+            for (let i = 0; i < markerData.length; i++) {
+                if (markerData[i].id === id) {
+                    markers.removeLayer(markerData[i].marker);
+                    markerData.splice(i, 1);
+                    updateNavTree();
+                    document.getElementById('point-info').innerHTML = 'Выберите точку на карте или в списке';
+                    break;
+                }
+            }
+        }
+
+        // Очистка всех маркеров
+        function clearMarkers() {
+            markers.clearLayers();
+            markerData = [];
+            updateNavTree();
+            document.getElementById('point-info').innerHTML = 'Выберите точку на карте или в списке';
+        }
+
+        // Включение обработчика кликов
+        function enableClickHandler() {
+            map.on('click', function(e) {
+                if (bridge) {
+                    bridge.addPoint(e.latlng.lat, e.latlng.lng);
+                }
+            });
+        }
+
+        // Отключение обработчика кликов
+        function disableClickHandler() {
+            map.off('click');
+        }
+    </script>
+</body>
+</html>
