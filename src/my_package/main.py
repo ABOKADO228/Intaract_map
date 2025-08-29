@@ -97,9 +97,6 @@ class MapApp(QMainWindow):
         self.map_view = QWebEngineView()
         self.map_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        # Панель инструментов
-        self.setup_toolbar(layout)
-
         # Добавляем карту
         layout.addWidget(self.map_view, 1)
 
@@ -108,6 +105,9 @@ class MapApp(QMainWindow):
 
         # Загружаем карту
         self.load_map_html()
+
+        # Панель инструментов
+        self.setup_toolbar(layout)
 
     def center_window(self):
         """Центрирует окно на экране"""
@@ -128,13 +128,7 @@ class MapApp(QMainWindow):
         self.btn_clear = QPushButton("Очистить карту")
         self.btn_clear.clicked.connect(self.clear_map)
 
-        self.btn_export = QPushButton("Экспорт данных")
-        self.btn_export.clicked.connect(self.export_data)
-
-        self.btn_import = QPushButton("Импорт данных")
-        self.btn_import.clicked.connect(self.import_data)
-
-        for btn in [self.btn_add_point, self.btn_clear, self.btn_export, self.btn_import]:
+        for btn in [self.btn_add_point, self.btn_clear]:
             btn.setMinimumHeight(35)
             toolbar_layout.addWidget(btn)
 
@@ -171,7 +165,7 @@ class MapApp(QMainWindow):
         """Читает файл из директории ресурсов"""
         try:
             base_path = Path(__file__).parent
-            file_path = base_path / "html_templates" / filename
+            file_path = os.path.join(base_path, "html_templates", filename)
             with open(file_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
@@ -182,6 +176,7 @@ class MapApp(QMainWindow):
         """Вызывается после загрузки карты"""
         # Инициализируем точки на карте
         self.map_view.page().runJavaScript("initPoints();")
+        self.import_data()
 
     def enable_add_point_mode(self):
         """Активирует режим добавления точки"""
@@ -250,26 +245,10 @@ class MapApp(QMainWindow):
             self.statusBar().showMessage("Все точки удалены")
             self.point_mode = False
 
-    def export_data(self):
-        """Экспортирует данные в файл"""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, "Экспорт данных", "", "JSON Files (*.json)"
-        )
-        if file_path:
-            try:
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump(self.points, f, ensure_ascii=False, indent=4)
-                self.statusBar().showMessage(f"Данные экспортированы в {file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "Ошибка", f"Не удалось экспортировать данные: {str(e)}")
-
     def import_data(self):
         """Импортирует данные из файла"""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Импорт данных", "", "JSON Files (*.json)"
-        )
-        if file_path:
-            try:
+        file_path = os.path.join(data_dir, "data.json")
+        try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     imported_data = json.load(f)
 
@@ -284,15 +263,15 @@ class MapApp(QMainWindow):
                     self.map_view.page().runJavaScript(js_code)
 
                 self.statusBar().showMessage(f"Данные импортированы из {file_path}")
-            except Exception as e:
+        except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось импортировать данные: {str(e)}")
 
 
 if __name__ == "__main__":
     # Создаем необходимые директории
     base_dir = Path(__file__).parent
-    data_dir = base_dir / "data"
-    resources_dir = base_dir / "html_templates"
+    data_dir = os.path.join(base_dir, "data")
+    resources_dir = os.path.join(base_dir, "html_templates")
 
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(resources_dir, exist_ok=True)
