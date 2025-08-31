@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ФормаВвода</title>
+    <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body>
+    <div>
+        <form id="form" action="" method="get">
+            <p>
+                <label for="name">Введите имя:</label>
+                <input type="text" name="name" id="name" required>
+            </p>
+            <p>
+                <label for="deep">Глубина:</label>
+                <input type="text" name="deep" id="deep" required>
+            </p>
+            <p>
+                <label for="filters">Фильтры:</label>
+                <input type="text" name="filters" id="filters" required>
+            </p>
+            <p>
+                <label for="comments">Комментарии:</label>
+                <input type="text" name="comments" id="comments" required>
+            </p>
+            <button type="button" id="submitBtn">Создать</button>
+        </form>
+    </div>
+
+    <script>
+        var bridge = null;
+
+        // Инициализация WebChannel
+        document.addEventListener("DOMContentLoaded", function() {
+            new QWebChannel(qt.webChannelTransport, function(channel) {
+                bridge = channel.objects.dialogBridge;
+                console.log("WebChannel инициализирован");
+            });
+        });
+
+        // Обработка формы
+        document.getElementById("submitBtn").addEventListener("click", function() {
+            const formData = new FormData(document.getElementById('form'));
+            const data = Object.fromEntries(formData.entries());
+            if (bridge) {
+                bridge.sendFormData(JSON.stringify(data));
+            } else {
+                console.error("WebChannel не инициализирован");
+            }
+        });
+    </script>
+</body>
+</html>

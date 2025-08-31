@@ -2,7 +2,7 @@ import sys
 import os
 from pathlib import Path
 import json
-from PyQt5.QtCore import QObject, pyqtSlot, QUrl, Qt, QPointF
+from PyQt5.QtCore import QObject, pyqtSlot, QUrl, Qt, QPointF, pyqtSignal, QVariant, pyqtProperty,  QEventLoop
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QFileDialog, QMessageBox, QInputDialog,
@@ -56,6 +56,7 @@ class DataManager():
         self.save_data()
 
 
+
 class Bridge(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -68,7 +69,6 @@ class Bridge(QObject):
     @pyqtSlot(str)
     def removePoint(self, point_id):
         self.parent.remove_point(point_id)
-
 
 class MapApp(QMainWindow):
     def __init__(self, data_manager):
@@ -189,12 +189,10 @@ class MapApp(QMainWindow):
         if not self.point_mode:
             return
 
-        self.point_mode = False
-        point_name, ok = QInputDialog.getText(
-            self, "Название точки", "Введите название точки:"
-        )
+        self.dialogWindow = DialogWindow(self)
+        self.dialogWindow.show()
 
-        if ok and point_name:
+        if False:
             # Создаем объект точки
             new_point = {
                 "lat": lat,
@@ -265,6 +263,77 @@ class MapApp(QMainWindow):
                 self.statusBar().showMessage(f"Данные импортированы из {file_path}")
         except Exception as e:
                 QMessageBox.critical(self, "Ошибка", f"Не удалось импортировать данные: {str(e)}")
+
+
+
+class DialogBridge(QObject):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent = parent
+        self._data = ""
+
+    @pyqtProperty(str)
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, value):
+        self._data = value
+
+    @pyqtSlot(str)
+    def sendFormData(self, data):
+        QMessageBox.critical(self.parent, "Ошибка", f"Не удалось импортировать данные {data}")
+        self.parent.close();
+
+class DialogWindow(QMainWindow):
+    def __init__(self, dataManager, parent=None):
+        super().__init__(parent)  # !!! parent
+        self.setWindowTitle("Point input window")
+        self.resize(500, 500)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+
+        # Центральный виджет и компоновка
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout(central_widget)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(5)
+
+        # Создаем карту
+        self.form = QWebEngineView()
+        self.form.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        layout.addWidget(self.form, 1)
+        self.setup_web_channel()
+        self.load_temlate()
+
+
+    def load_temlate(self):
+        html_template = self.read_file("form_template.html")
+
+        if not html_template:
+            QMessageBox.critical(self, "Ошибка", "Не удалось загрузить шаблон ввода")
+            return
+
+        self.form.setHtml(html_template, QUrl("qrc:/"))
+
+    def read_file(self, filename):
+        """Читает файл из директории ресурсов"""
+        try:
+            base_path = Path(__file__).parent
+            file_path = os.path.join(base_path, "html_templates", filename)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            print(f"Ошибка чтения файла {filename}: {e}")
+            return None
+
+    def setup_web_channel(self):
+        self.bridge = DialogBridge(self)
+        self.channel = QWebChannel()
+        self.channel.registerObject('dialogBridge', self.bridge)
+        self.form.page().setWebChannel(self.channel)
+
 
 
 if __name__ == "__main__":
