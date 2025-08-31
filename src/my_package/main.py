@@ -185,34 +185,44 @@ class MapApp(QMainWindow):
         self.map_view.page().runJavaScript("enableClickHandler();")
 
     def add_point(self, lat, lng):
-        """Добавляет новую точку (вызывается из JavaScript)"""
         if not self.point_mode:
             return
 
-        self.dialogWindow = DialogWindow(self)
-        self.dialogWindow.show()
+        self.dialog_window = DialogWindow(self)
+        self.dialog_window.dataSubmitted.connect(
+            lambda data: self.process_point_data(lat, lng, data)
+        )
+        self.dialog_window.destroyed.connect(
+            lambda: self.cancel_point_addition()
+        )
+        self.dialog_window.show()
 
-        if False:
-            # Создаем объект точки
-            new_point = {
-                "lat": lat,
-                "lng": lng,
-                "name": point_name
-            }
+    def process_point_data(self, lat, lng, data):
+        new_point = {
+            "lat": lat,
+            "lng": lng,
+            "name": data.get("name")
+        }
 
-            # Добавляем точку через менеджер данных
-            point_id = self.data_manager.add_point(new_point)
-            new_point['id'] = point_id
+        point_id = self.data_manager.add_point(new_point)
+        js_code = f"""
+        addMarker(
+            {lat}, 
+            {lng},
+            {json.dumps(new_point['name'])}, 
+            '{point_id}'
+        );
+        """
+        self.map_view.page().runJavaScript(js_code)
+        self.statusBar().showMessage(f"Добавлена точка: {new_point['name']}")
+        self.point_mode = False
+        self.dialog_window.close()
 
-            # Добавляем маркер на карту
-            js_code = f"addMarker({lat}, {lng}, '{point_name}', '{point_id}');"
-            self.map_view.page().runJavaScript(js_code)
-
-            self.statusBar().showMessage(f"Добавлена точка: {point_name}")
-
-        # Отключаем обработчик кликов
-        self.map_view.page().runJavaScript("disableClickHandler();")
-
+    def cancel_point_addition(self):
+        if self.point_mode:
+            self.statusBar().showMessage("Добавление точки отменено")
+            self.point_mode = False
+            self.map_view.page().runJavaScript("disableClickHandler();")
     def remove_point(self, point_id):
         """Удаляет точку по ID"""
         # Находим точку для отображения информации
@@ -267,25 +277,18 @@ class MapApp(QMainWindow):
 
 
 class DialogBridge(QObject):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.parent = parent
-        self._data = ""
-
-    @pyqtProperty(str)
-    def data(self):
-        return self._data
-
-    @data.setter
-    def data(self, value):
-        self._data = value
+    formDataSubmitted = pyqtSignal(dict)
 
     @pyqtSlot(str)
-    def sendFormData(self, data):
-        QMessageBox.critical(self.parent, "Ошибка", f"Не удалось импортировать данные {data}")
-        self.parent.close();
+    def sendFormData(self, json_data):
+        try:
+            data = json.loads(json_data)
+            self.formDataSubmitted.emit(data)
+        except json.JSONDecodeError as e:
+            print(f"Ошибка parsing JSON: {e}")
 
 class DialogWindow(QMainWindow):
+    dataSubmitted = pyqtSignal(dict)
     def __init__(self, dataManager, parent=None):
         super().__init__(parent)  # !!! parent
         self.setWindowTitle("Point input window")
@@ -330,6 +333,7 @@ class DialogWindow(QMainWindow):
 
     def setup_web_channel(self):
         self.bridge = DialogBridge(self)
+        self.bridge.formDataSubmitted.connect(self.dataSubmitted)
         self.channel = QWebChannel()
         self.channel.registerObject('dialogBridge', self.bridge)
         self.form.page().setWebChannel(self.channel)
