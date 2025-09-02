@@ -19,11 +19,13 @@ class DataManager():
         self.current_data = []
         self.ensure_data_file()
 
+
     def ensure_data_file(self):
         """Создает файл данных и директорию, если они не существуют"""
         os.makedirs(self.data_path, exist_ok=True)
         if not os.path.exists(self.data_file):
             self.save_data()
+
 
     def load_data(self):
         """Загружает данные из файла"""
@@ -55,8 +57,6 @@ class DataManager():
         self.current_data = []
         self.save_data()
 
-
-
 class Bridge(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -74,6 +74,7 @@ class MapApp(QMainWindow):
     def __init__(self, data_manager):
         super().__init__()
         self.data_manager = data_manager
+
         self.points = data_manager.current_data
         self.point_mode = False
 
@@ -201,7 +202,10 @@ class MapApp(QMainWindow):
         new_point = {
             "lat": lat,
             "lng": lng,
-            "name": data.get("name")
+            "name": data.get("name"),
+            "deep": data.get("deep"),
+            "filters": data.get("filters"),
+            "comments": data.get("comments")
         }
 
         point_id = self.data_manager.add_point(new_point)
@@ -210,12 +214,17 @@ class MapApp(QMainWindow):
             {lat}, 
             {lng},
             {json.dumps(new_point['name'])}, 
-            '{point_id}'
+            '{point_id}',
+            {json.dumps(new_point['deep'])},
+            {json.dumps(new_point['filters'])},
+            {json.dumps(new_point['comments'])}
+
         );
         """
         self.map_view.page().runJavaScript(js_code)
         self.statusBar().showMessage(f"Добавлена точка: {new_point['name']}")
         self.point_mode = False
+        self.points = data_manager.current_data
         self.dialog_window.close()
 
     def cancel_point_addition(self):
@@ -223,6 +232,7 @@ class MapApp(QMainWindow):
             self.statusBar().showMessage("Добавление точки отменено")
             self.point_mode = False
             self.map_view.page().runJavaScript("disableClickHandler();")
+
     def remove_point(self, point_id):
         """Удаляет точку по ID"""
         # Находим точку для отображения информации
@@ -267,7 +277,7 @@ class MapApp(QMainWindow):
                 # Обновляем карту
                 self.map_view.page().runJavaScript("clearMarkers();")
                 for point in self.points:
-                    js_code = f"addMarker({point['lat']}, {point['lng']}, '{point['name']}', '{point['id']}');"
+                    js_code = f"addMarker({point['lat']}, {point['lng']}, '{point['name']}', '{point['id']}', '{point['deep']}','{point['filters']}','{point['comments']}');"
                     self.map_view.page().runJavaScript(js_code)
 
                 self.statusBar().showMessage(f"Данные импортированы из {file_path}")
@@ -289,10 +299,11 @@ class DialogBridge(QObject):
 
 class DialogWindow(QMainWindow):
     dataSubmitted = pyqtSignal(dict)
+
     def __init__(self, dataManager, parent=None):
         super().__init__(parent)  # !!! parent
         self.setWindowTitle("Point input window")
-        self.resize(500, 500)
+        self.resize(550, 800)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
         # Центральный виджет и компоновка

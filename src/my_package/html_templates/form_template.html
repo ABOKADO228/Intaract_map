@@ -1,31 +1,179 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>ФормаВвода</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Форма ввода данных</title>
     <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #4361ee;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .form-container {
+            padding: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #444;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #4361ee;
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 150px;
+            padding: 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            resize: vertical;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #4361ee;
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+
+        .btn {
+            background: #4361ee;
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            display: block;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background: #3a56d4;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .form-footer {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #777;
+        }
+
+        @media (max-width: 650px) {
+            .container {
+                border-radius: 10px;
+            }
+
+            .header {
+                padding: 15px;
+            }
+
+            .form-container {
+                padding: 20px;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div>
-        <form id="form" action="" method="get">
-            <p>
-                <label for="name">Введите имя:</label>
-                <input type="text" name="name" id="name" required>
-            </p>
-            <p>
-                <label for="deep">Глубина:</label>
-                <input type="text" name="deep" id="deep" required>
-            </p>
-            <p>
-                <label for="filters">Фильтры:</label>
-                <input type="text" name="filters" id="filters" required>
-            </p>
-            <p>
-                <label for="comments">Комментарии:</label>
-                <input type="text" name="comments" id="comments" required>
-            </p>
-            <button type="button" id="submitBtn">Создать</button>
-        </form>
+    <div class="container">
+        <div class="header">
+            <h1>Форма ввода данных</h1>
+        </div>
+
+        <div class="form-container">
+            <form id="form" action="" method="get">
+                <div class="form-group">
+                    <label for="name">Введите имя:</label>
+                    <input type="text" name="name" id="name" required placeholder="Ваше имя">
+                </div>
+
+                <div class="form-group">
+                    <label for="deep">Глубина:</label>
+                    <input type="text" name="deep" id="deep" required placeholder="Укажите глубину">
+                </div>
+
+                <div class="form-group">
+                    <label for="filters">Фильтры:</label>
+                    <input type="text" name="filters" id="filters" required placeholder="Введите фильтры">
+                </div>
+
+                <div class="form-group">
+                    <label for="comments">Комментарии:</label>
+                    <textarea name="comments" id="comments" required placeholder="Введите ваши комментарии здесь..."></textarea>
+                </div>
+
+                <button type="button" id="submitBtn" class="btn">Создать</button>
+            </form>
+
+            <div class="form-footer">
+                Заполните все поля формы и нажмите "Создать"
+            </div>
+        </div>
     </div>
 
     <script>
@@ -45,8 +193,28 @@
             const data = Object.fromEntries(formData.entries());
             if (bridge) {
                 bridge.sendFormData(JSON.stringify(data));
+
+                // Визуальная обратная связь
+                const btn = document.getElementById('submitBtn');
+                btn.textContent = 'Данные отправлены!';
+                btn.style.background = '#4caf50';
+
+                setTimeout(() => {
+                    btn.textContent = 'Создать';
+                    btn.style.background = '';
+                }, 1500);
             } else {
                 console.error("WebChannel не инициализирован");
+
+                // Визуальная обратная связь об ошибке
+                const btn = document.getElementById('submitBtn');
+                btn.textContent = 'Ошибка подключения!';
+                btn.style.background = '#f44336';
+
+                setTimeout(() => {
+                    btn.textContent = 'Создать';
+                    btn.style.background = '';
+                }, 1500);
             }
         });
     </script>

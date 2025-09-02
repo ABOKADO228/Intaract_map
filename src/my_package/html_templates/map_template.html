@@ -9,36 +9,89 @@
         #web-content {
             display: flex;
             width: 100%;
-            height: 100vh;
+            height: 97vh;
         }
         #map {
             width: 75%;
-            height: 100vh;
+        }
+        h3 {
+            margin-bottom: 10px;
+            font-size: 18px;
+            color: #333;
+            margin-top: 5px;
         }
         #side-panel {
             width: 25%;
-            height: 100vh;
             display: flex;
             flex-direction: column;
-            padding: 10px;
+            padding-left: 5px;
             box-sizing: border-box;
             overflow-y: auto;
         }
         .nav-tree-container {
-            margin-bottom: 15px;
+            margin-bottom: 5px;
             border: 1px solid #ddd;
             border-radius: 5px;
-            padding: 10px;
+            padding: 2px;
             background-color: #f9f9f9;
+            height: 40%;
         }
         .point-info-container {
             border: 1px solid #ddd;
             border-radius: 5px;
-            padding: 10px;
+            padding: 2px;
             background-color: #f9f9f9;
             flex-grow: 1;
+            height: 40%;
         }
-        /* Остальные стили... */
+         #point-info p {
+            margin: 8px 0;
+        }
+        .color-controls {
+            margin-top: 5px;
+            padding: 2px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fff;
+            height: 20%
+          }
+         .color-picker {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0px;
+            width: 100px;
+            height: 30px;
+        }
+         .color-picker label {
+            margin-right: 10px;
+            font-weight: normal;
+        }
+        .color-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin-top: 3px;
+        }
+        .color-option {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        .color-option.selected {
+            border-color: #333;
+        }
+
+        #apply-color {
+            background: #4361ee;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+        }
     </style>
 </head>
 <body>
@@ -46,7 +99,7 @@
         <div id="map"></div>
         <div id="side-panel">
             <div class="nav-tree-container">
-                <div class="nav-tree-title">Элементы навигационного дерева:</div>
+                <h3>Элементы навигационного дерева:</h3>
                 <ul id="nav-tree">
                     <li class="empty">Добавьте маркеры, чтобы увидеть элементы дерева</li>
                 </ul>
@@ -55,7 +108,25 @@
                 <h3>Информация о точке:</h3>
                 <div id="point-info">Выберите точку на карте или в списке</div>
             </div>
+           <div class="color-controls">
+                <h3>Изменение цвета маркеров</h3>
+                <div class="color-picker">
+                    <label for="marker-color">Цвет маркера:</label>
+                    <input type="color" id="marker-color" value="#4361ee">
+                </div>
+                <div class="color-options">
+                    <div class="color-option selected" style="background-color: #4361ee;" data-color="#4361ee"></div>
+                    <div class="color-option" style="background-color: #ff4757;" data-color="#ff4757"></div>
+                    <div class="color-option" style="background-color: #2ed573;" data-color="#2ed573"></div>
+                    <div class="color-option" style="background-color: #ffa502;" data-color="#ffa502"></div>
+                    <div class="color-option" style="background-color: #a55eea;" data-color="#a55eea"></div>
+                    <div class="color-option" style="background-color: #00d2d3;" data-color="#00d2d3"></div>
+                </div>
+                <button id="apply-color">Применить цвет к выбранным маркерам</button>
+            </div>
+
         </div>
+
     </div>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
@@ -92,14 +163,14 @@
         function initPoints() {
             if (typeof pointsData !== 'undefined') {
                 pointsData.forEach(function(point) {
-                    addMarker(point.lat, point.lng, point.name, point.id);
+                    addMarker(point.lat, point.lng, point.name, point.id, point.deep, point.filters, point.comments);
                 });
                 updateNavTree();
             }
         }
 
         // Добавление маркера
-        function addMarker(lat, lng, name, id) {
+        function addMarker(lat, lng, name, id, deep, filters, comments) {
             var marker = L.marker([lat, lng]).addTo(markers);
             if (name) {
                 marker.bindPopup(name);
@@ -111,7 +182,10 @@
                 lat: lat,
                 lng: lng,
                 name: name,
-                marker: marker
+                marker: marker,
+                deep: deep,
+                filters: filters,
+                comments: comments
             };
 
             markerData.push(markerInfo);
@@ -182,7 +256,10 @@
             pointInfo.innerHTML = `
                 <p><strong>Название:</strong> ${marker.name}</p>
                 <p><strong>Координаты:</strong> ${marker.lat.toFixed(6)}, ${marker.lng.toFixed(6)}</p>
-                <p><strong>ID:</strong> ${marker.id}</p>
+                <p><strong>Глубина:</strong> ${marker.deep}</p>
+                <p><strong>Фильтры:</strong> ${marker.filters}</p>
+                <p><strong>Комментарии:</strong> ${marker.comments}</p>
+
             `;
         }
 
