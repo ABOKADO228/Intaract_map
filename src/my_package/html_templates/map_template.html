@@ -170,16 +170,18 @@
     </div>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
-
-    <script>
+<script>
         // Инициализация карты
         var map = L.map('map').setView([59.93, 30.34], 12);
         var markers = L.layerGroup().addTo(map);
         var selectedMarkerIds = [];
+
         // Данные точек (заменяются при загрузке)
         /* {{POINTS_DATA}} */
 
         var bridge = null;
+        var colorChangeQueue = [];
+        var colorChangeTimer = null;
 
         // Инициализация WebChannel
         document.addEventListener("DOMContentLoaded", function() {
@@ -200,15 +202,70 @@
 
         // Инициализация точек
         function initPoints() {
-            if (typeof markerData !== 'undefined') {
-                markerData.forEach(function(point) {
-                    addMarkerInit(point.lat, point.lng, point.name, point.id, point.deep, point.filters, point.debit, point.comments, "point.color");
+            if (typeof markerData !== 'undefined' && markerData.length > 0) {
+                // Используем фрагмент документа для быстрой вставки
+                var tempContainer = document.createDocumentFragment();
+
+                markerData.forEach(function(point, index) {
+                    addMarkerInit(
+                        point.lat,
+                        point.lng,
+                        point.name,
+                        point.id,
+                        point.deep,
+                        point.filters,
+                        point.debit,
+                        point.comments,
+                        point.color || '#4361ee'
+                    );
                 });
+
                 updateNavTree();
             }
         }
 
-        // Добавление маркера
+        // Добавление маркера инициализации (универсальная функция)
+        function addMarkerInit(lat, lng, name, id, deep, filters, debit, comments, color) {
+            if (!color) color = '#4361ee';
+
+            // Создаем кастомную иконку с выбранным цветом
+            var markerIcon = L.divIcon({
+                html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
+                className: 'custom-marker',
+                iconSize: [15, 15],
+                iconAnchor: [7, 7]
+            });
+
+            var marker = L.marker([lat, lng], {icon: markerIcon}).addTo(markers);
+
+            if (name) {
+                marker.bindPopup(name);
+            }
+
+            // Сохраняем данные маркера
+            var markerInfo = {
+                id: id,
+                lat: lat,
+                lng: lng,
+                name: name,
+                marker: marker,
+                deep: deep,
+                filters: filters,
+                debit: debit,
+                comments: comments,
+                color: color
+            };
+
+            // Добавляем обработчик клика для показа информации
+            marker.on('click', function() {
+                showPointInfo(markerInfo);
+                toggleMarkerSelection(markerInfo.id);
+            });
+
+            return marker;
+        }
+
+        // Добавление маркера (универсальная функция)
         function addMarker(lat, lng, name, id, deep, filters, debit, comments, color) {
             if (!color) color = '#4361ee';
 
@@ -247,102 +304,61 @@
                 showPointInfo(markerInfo);
                 toggleMarkerSelection(markerInfo.id);
             });
-
             updateNavTree();
             return marker;
         }
 
- // Добавление маркера для инициализации
-        function addMarkerInit(lat, lng, name, id, deep, filters, debit, comments, color) {
-            if (!color) color = '#4361ee';
-
-            // Создаем кастомную иконку с выбранным цветом
-            var markerIcon = L.divIcon({
-                html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
-                className: 'custom-marker',
-                iconSize: [15, 15],
-                iconAnchor: [7, 7]
-            });
-
-            var marker = L.marker([lat, lng], {icon: markerIcon}).addTo(markers);
-
-            if (name) {
-                marker.bindPopup(name);
-            }
-
-            // Сохраняем данные маркера
-            var markerInfo = {
-                id: id,
-                lat: lat,
-                lng: lng,
-                name: name,
-                marker: marker,
-                deep: deep,
-                filters: filters,
-                debit: debit,
-                comments: comments,
-                color: color
-            };
-
-            // Добавляем обработчик клика для показа информации
-            marker.on('click', function() {
-                showPointInfo(markerInfo);
-                toggleMarkerSelection(markerInfo.id);
-            });
-
-            updateNavTree();
-            return marker;
-        }
-
-        // Обновление навигационного дерева
+        // Обновление навигационного дерева с использованием DocumentFragment
         function updateNavTree() {
             const navTree = document.getElementById('nav-tree');
-            navTree.innerHTML = '';
+            const fragment = document.createDocumentFragment();
 
             if (markerData.length === 0) {
                 const emptyItem = document.createElement('li');
                 emptyItem.textContent = 'Добавьте маркеры, чтобы увидеть элементы дерева';
                 emptyItem.classList.add('empty');
-                navTree.appendChild(emptyItem);
-                return;
+                fragment.appendChild(emptyItem);
+            } else {
+                markerData.forEach(function(marker, index) {
+                    const newItem = document.createElement('li');
+                    if (selectedMarkerIds.includes(marker.id)) {
+                        newItem.style.backgroundColor = '#e6f0ff';
+                    }
+
+                    const colorBox = document.createElement('div');
+                    colorBox.classList.add('marker-color');
+                    colorBox.style.backgroundColor = marker.color;
+
+                    const markerInfo = document.createElement('div');
+                    markerInfo.classList.add('marker-info');
+                    markerInfo.textContent = `${index+1}. ${marker.name}`;
+                    markerInfo.onclick = function() {
+                        showPointInfo(marker);
+                        map.panTo(marker.marker.getLatLng());
+                        marker.marker.openPopup();
+                        toggleMarkerSelection(marker.id);
+                    };
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.textContent = 'Удалить';
+                    deleteBtn.classList.add('delete-btn');
+                    deleteBtn.onclick = function() {
+                        if (bridge) {
+                            bridge.removePoint(marker.id);
+                        }
+                    };
+
+                    newItem.appendChild(colorBox);
+                    newItem.appendChild(markerInfo);
+                    newItem.appendChild(deleteBtn);
+
+                    fragment.appendChild(newItem);
+                });
             }
 
-            markerData.forEach(function(marker, index) {
-                const newItem = document.createElement('li');
-                if (selectedMarkerIds.includes(marker.id)) {
-                    newItem.style.backgroundColor = '#e6f0ff';
-                }
-
-                const colorBox = document.createElement('div');
-                colorBox.classList.add('marker-color');
-                colorBox.style.backgroundColor = marker.color;
-
-                const markerInfo = document.createElement('div');
-                markerInfo.classList.add('marker-info');
-                markerInfo.textContent = `${index+1}. ${marker.name}`;
-                markerInfo.onclick = function() {
-                    showPointInfo(marker);
-                    map.panTo(marker.marker.getLatLng());
-                    marker.marker.openPopup();
-                    toggleMarkerSelection(marker.id);
-                };
-
-                const deleteBtn = document.createElement('button');
-                deleteBtn.textContent = 'Удалить';
-                deleteBtn.classList.add('delete-btn');
-                deleteBtn.onclick = function() {
-                    if (bridge) {
-                        bridge.removePoint(marker.id);
-                        updateNavTree();
-                    }
-                };
-
-                newItem.appendChild(colorBox);
-                newItem.appendChild(markerInfo);
-                newItem.appendChild(deleteBtn);
-
-                navTree.appendChild(newItem);
-            });
+            // Быстрая замена содержимого
+            navTree.innerHTML = '';
+            navTree.appendChild(fragment);
         }
 
         // Показать информацию о точке
@@ -370,17 +386,17 @@
             updateNavTree();
         }
 
-        // Изменение цвета маркеров
+        // Изменение цвета маркеров с оптимизацией
         function changeMarkerColor(color) {
             if (selectedMarkerIds.length === 0) {
                 alert('Сначала выберите маркеры, нажав на них в списке или на карте');
                 return;
             }
 
+            // Обновляем только выбранные маркеры
             selectedMarkerIds.forEach(function(markerId) {
                 const markerInfo = markerData.find(m => m.id === markerId);
                 if (markerInfo) {
-                    // Обновляем цвет в данных
                     markerInfo.color = color;
 
                     // Создаем новую иконку с обновленным цветом
@@ -391,31 +407,71 @@
                         iconAnchor: [7, 7]
                     });
 
-                    // Устанавливаем новую иконку
                     markerInfo.marker.setIcon(newIcon);
                 }
             });
 
+            // Добавляем в очередь обновлений
+            colorChangeQueue.push({color: color, markerIds: [...selectedMarkerIds]});
+
+            // Запускаем таймер для отправки изменений (дебаунсинг)
+            if (colorChangeTimer) clearTimeout(colorChangeTimer);
+            colorChangeTimer = setTimeout(sendColorUpdates, 1000);
+
             updateNavTree();
+        }
+
+        // Отправка обновлений цветов с дебаунсингом
+        function sendColorUpdates() {
+            if (colorChangeQueue.length === 0 || !bridge) return;
+
+            // Создаем карту последних цветов для каждого маркера
+            const latestColors = {};
+            colorChangeQueue.forEach(change => {
+                change.markerIds.forEach(id => {
+                    latestColors[id] = change.color;
+                });
+            });
+
+            // Обновляем данные маркеров
+            markerData.forEach(marker => {
+                if (latestColors[marker.id]) {
+                    marker.color = latestColors[marker.id];
+                }
+            });
+
+            // Отправляем только необходимые данные
+            const dataToSend = markerData.map(marker => ({
+                id: marker.id,
+                lat: marker.lat,
+                lng: marker.lng,
+                name: marker.name,
+                deep: marker.deep,
+                filters: marker.filters,
+                debit: marker.debit,
+                comments: marker.comments,
+                color: marker.color
+            }));
+
+            bridge.changeColor(JSON.stringify(dataToSend));
+            colorChangeQueue = [];
         }
 
         // Удаление маркера
         function removeMarker(id) {
-            for (let i = 0; i < markerData.length; i++) {
-                if (markerData[i].id === id) {
-                    markers.removeLayer(markerData[i].marker);
-                    markerData.splice(i, 1);
+            const index = markerData.findIndex(m => m.id === id);
+            if (index !== -1) {
+                markers.removeLayer(markerData[index].marker);
+                markerData.splice(index, 1);
 
-                    // Удаляем из выбранных, если есть
-                    const selectedIndex = selectedMarkerIds.indexOf(id);
-                    if (selectedIndex !== -1) {
-                        selectedMarkerIds.splice(selectedIndex, 1);
-                    }
-
-                    updateNavTree();
-                    document.getElementById('point-info').innerHTML = 'Выберите точку на карте или в списке';
-                    break;
+                // Удаляем из выбранных, если есть
+                const selectedIndex = selectedMarkerIds.indexOf(id);
+                if (selectedIndex !== -1) {
+                    selectedMarkerIds.splice(selectedIndex, 1);
                 }
+
+                updateNavTree();
+                document.getElementById('point-info').innerHTML = 'Выберите точку на карте или в списке';
             }
         }
 
@@ -448,17 +504,19 @@
             changeMarkerColor(color);
         });
 
-        document.querySelectorAll('.color-option').forEach(function(option) {
-            option.addEventListener('click', function() {
-                const color = this.getAttribute('data-color');
+        // Делегирование событий для цветовых опций
+        document.querySelector('.color-options').addEventListener('click', function(e) {
+            const colorOption = e.target.closest('.color-option');
+            if (colorOption) {
+                const color = colorOption.getAttribute('data-color');
                 document.getElementById('marker-color').value = color;
 
                 // Обновляем визуальное выделение
                 document.querySelectorAll('.color-option').forEach(function(opt) {
                     opt.classList.remove('selected');
                 });
-                this.classList.add('selected');
-            });
+                colorOption.classList.add('selected');
+            }
         });
 
         document.getElementById('marker-color').addEventListener('change', function() {

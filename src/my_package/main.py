@@ -2,13 +2,11 @@ import sys
 import os
 from pathlib import Path
 import json
-from PyQt5.QtCore import QObject, pyqtSlot, QUrl, Qt, QPointF, pyqtSignal, QVariant, pyqtProperty,  QEventLoop
+from PyQt5.QtCore import QObject, pyqtSlot, QUrl, Qt, pyqtSignal
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                             QPushButton, QFileDialog, QMessageBox, QInputDialog,
-                             QSizePolicy, QStatusBar, QSplitter)
+                             QPushButton, QMessageBox, QSizePolicy, QStatusBar)
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtGui import QIcon, QPixmap
 import uuid
 
 
@@ -20,13 +18,11 @@ class DataManager():
         self.ensure_data_file()
         self.load_data()
 
-
     def ensure_data_file(self):
         """Создает файл данных и директорию, если они не существуют"""
         os.makedirs(self.data_path, exist_ok=True)
         if not os.path.exists(self.data_file):
             self.save_data()
-
 
     def load_data(self):
         """Загружает данные из файла"""
@@ -58,6 +54,12 @@ class DataManager():
         self.current_data = []
         self.save_data()
 
+    def update_points(self, points_data):
+        """Обновляет все точки"""
+        self.current_data = points_data
+        self.save_data()
+
+
 class Bridge(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -71,11 +73,19 @@ class Bridge(QObject):
     def removePoint(self, point_id):
         self.parent.remove_point(point_id)
 
+    @pyqtSlot(str)
+    def changeColor(self, json_data):
+        try:
+            data = json.loads(json_data)
+            self.parent.update_color(data)
+        except json.JSONDecodeError as e:
+            print(f"Ошибка parsing JSON: {e}")
+
+
 class MapApp(QMainWindow):
     def __init__(self, data_manager):
         super().__init__()
         self.data_manager = data_manager
-
         self.points = data_manager.current_data
         self.point_mode = False
 
@@ -178,7 +188,6 @@ class MapApp(QMainWindow):
         """Вызывается после загрузки карты"""
         # Инициализируем точки на карте
         self.map_view.page().runJavaScript("initPoints();")
-        # self.import_data()
 
     def enable_add_point_mode(self):
         """Активирует режим добавления точки"""
@@ -207,7 +216,8 @@ class MapApp(QMainWindow):
             "deep": data.get("deep"),
             "filters": data.get("filters"),
             "debit": data.get("debit"),
-            "comments": data.get("comments")
+            "comments": data.get("comments"),
+            "color": data.get("color", "#4361ee")
         }
 
         point_id = self.data_manager.add_point(new_point)
@@ -220,14 +230,14 @@ class MapApp(QMainWindow):
             {json.dumps(new_point['deep'])},
             {json.dumps(new_point['filters'])},
             {json.dumps(new_point['debit'])},
-            {json.dumps(new_point['comments'])}
-
+            {json.dumps(new_point['comments'])},
+            {json.dumps(new_point['color'])}
         );
         """
         self.map_view.page().runJavaScript(js_code)
         self.statusBar().showMessage(f"Добавлена точка: {new_point['name']}")
         self.point_mode = False
-        self.points = data_manager.current_data
+        self.points = self.data_manager.current_data
         self.dialog_window.close()
 
     def cancel_point_addition(self):
@@ -266,27 +276,26 @@ class MapApp(QMainWindow):
             self.statusBar().showMessage("Все точки удалены")
             self.point_mode = False
 
-    def import_data(self):
-        """Импортирует данные из файла"""
-        file_path = os.path.join(data_dir, "data.json")
+    def update_color(self, points_data):
+        """Обновляет цвета точек в данных"""
         try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    imported_data = json.load(f)
+            # Создаем словарь для быстрого поиска точек по ID
+            points_dict = {point['id']: point for point in self.data_manager.current_data}
 
-                # Добавляем импортированные данные
-                for point in imported_data:
-                    self.data_manager.add_point(point)
+            # Обновляем цвета
+            for point in points_data:
+                if point['id'] in points_dict:
+                    points_dict[point['id']]['color'] = point.get('color', '#4361ee')
 
-                # Обновляем карту
-                self.map_view.page().runJavaScript("clearMarkers();")
-                for point in self.points:
-                    js_code = f"addMarker({point['lat']}, {point['lng']}, '{point['name']}', '{point['id']}', '{point['deep']}','{point['filters']}','{point['comments']}');"
-                    self.map_view.page().runJavaScript(js_code)
+            # Преобразуем обратно в список
+            self.data_manager.current_data = list(points_dict.values())
+            self.data_manager.save_data()
+            self.points = self.data_manager.current_data
 
-                self.statusBar().showMessage(f"Данные импортированы из {file_path}")
+            self.statusBar().showMessage("Цвета маркеров успешно обновлены")
         except Exception as e:
-                QMessageBox.critical(self, "Ошибка", f"Не удалось импортировать данные: {str(e)}")
-
+            print(f"Ошибка при обновлении цветов: {e}")
+            self.statusBar().showMessage("Ошибка при обновлении цветов маркеров")
 
 
 class DialogBridge(QObject):
@@ -300,11 +309,12 @@ class DialogBridge(QObject):
         except json.JSONDecodeError as e:
             print(f"Ошибка parsing JSON: {e}")
 
+
 class DialogWindow(QMainWindow):
     dataSubmitted = pyqtSignal(dict)
 
-    def __init__(self, dataManager, parent=None):
-        super().__init__(parent)  # !!! parent
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setWindowTitle("Point input window")
         self.resize(550, 800)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
@@ -316,16 +326,15 @@ class DialogWindow(QMainWindow):
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
-        # Создаем карту
+        # Создаем форму
         self.form = QWebEngineView()
         self.form.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         layout.addWidget(self.form, 1)
         self.setup_web_channel()
-        self.load_temlate()
+        self.load_template()
 
-
-    def load_temlate(self):
+    def load_template(self):
         html_template = self.read_file("form_template.html")
 
         if not html_template:
@@ -351,7 +360,6 @@ class DialogWindow(QMainWindow):
         self.channel = QWebChannel()
         self.channel.registerObject('dialogBridge', self.bridge)
         self.form.page().setWebChannel(self.channel)
-
 
 
 if __name__ == "__main__":
