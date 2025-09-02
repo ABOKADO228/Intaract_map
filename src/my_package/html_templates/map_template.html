@@ -5,76 +5,64 @@
     <meta charset="utf-8">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
     <style>
-        /* Стили остаются примерно теми же, но с улучшениями */
         #web-content {
             display: flex;
             width: 100%;
-            height: 97vh;
+            height: 100vh;
         }
         #map {
             width: 75%;
-        }
-        h3 {
-            margin-bottom: 10px;
-            font-size: 18px;
-            color: #333;
-            margin-top: 5px;
+            height: 100vh;
         }
         #side-panel {
             width: 25%;
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            padding-left: 5px;
+            padding: 10px;
             box-sizing: border-box;
             overflow-y: auto;
+            background-color: #f5f5f5;
         }
         .nav-tree-container {
-            margin-bottom: 5px;
+            margin-bottom: 15px;
             border: 1px solid #ddd;
             border-radius: 5px;
-            padding: 2px;
-            background-color: #f9f9f9;
-            height: 40%;
+            padding: 10px;
+            background-color: #fff;
         }
         .point-info-container {
             border: 1px solid #ddd;
             border-radius: 5px;
-            padding: 2px;
-            background-color: #f9f9f9;
+            padding: 10px;
+            background-color: #fff;
             flex-grow: 1;
-            height: 40%;
-        }
-         #point-info p {
-            margin: 8px 0;
         }
         .color-controls {
-            margin-top: 5px;
-            padding: 2px;
+            margin-top: 15px;
+            padding: 10px;
             border: 1px solid #ddd;
             border-radius: 5px;
             background-color: #fff;
-            height: 20%
-          }
-         .color-picker {
+        }
+        .color-picker {
             display: flex;
             align-items: center;
-            margin-bottom: 0px;
-            width: 100px;
-            height: 30px;
+            margin-bottom: 10px;
         }
-         .color-picker label {
+        .color-picker label {
             margin-right: 10px;
-            font-weight: normal;
+            font-weight: bold;
         }
         .color-options {
             display: flex;
             flex-wrap: wrap;
-            gap: 3px;
-            margin-top: 3px;
+            gap: 5px;
+            margin-top: 10px;
         }
         .color-option {
-            width: 15px;
-            height: 15px;
+            width: 25px;
+            height: 25px;
             border-radius: 50%;
             cursor: pointer;
             border: 2px solid transparent;
@@ -82,15 +70,67 @@
         .color-option.selected {
             border-color: #333;
         }
-
+        #nav-tree {
+            list-style-type: none;
+            padding: 0;
+        }
+        #nav-tree li {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            margin-bottom: 5px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border-left: 4px solid #4361ee;
+        }
+        .marker-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+        }
+        .marker-info {
+            flex-grow: 1;
+            cursor: pointer;
+        }
+        .delete-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .empty {
+            color: #777;
+            font-style: italic;
+        }
+        h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        #point-info {
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        #point-info p {
+            margin: 8px 0;
+        }
         #apply-color {
+            margin-top: 10px;
+            padding: 8px 12px;
             background: #4361ee;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-weight: bold;
-            width: 100%;
+        }
+        #apply-color:hover {
+            background: #3a56d4;
         }
     </style>
 </head>
@@ -99,16 +139,13 @@
         <div id="map"></div>
         <div id="side-panel">
             <div class="nav-tree-container">
-                <h3>Элементы навигационного дерева:</h3>
+                <div class="nav-tree-title">Элементы навигационного дерева:</div>
                 <ul id="nav-tree">
                     <li class="empty">Добавьте маркеры, чтобы увидеть элементы дерева</li>
                 </ul>
             </div>
-            <div class="point-info-container">
-                <h3>Информация о точке:</h3>
-                <div id="point-info">Выберите точку на карте или в списке</div>
-            </div>
-           <div class="color-controls">
+
+            <div class="color-controls">
                 <h3>Изменение цвета маркеров</h3>
                 <div class="color-picker">
                     <label for="marker-color">Цвет маркера:</label>
@@ -125,8 +162,11 @@
                 <button id="apply-color">Применить цвет к выбранным маркерам</button>
             </div>
 
+            <div class="point-info-container">
+                <h3>Информация о точке:</h3>
+                <div id="point-info">Выберите точку на карте или в списке</div>
+            </div>
         </div>
-
     </div>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
@@ -136,6 +176,7 @@
         var map = L.map('map').setView([59.93, 30.34], 12);
         var markers = L.layerGroup().addTo(map);
         var markerData = [];
+        var selectedMarkerIds = [];
 
         // Данные точек (заменяются при загрузке)
         /* {{POINTS_DATA}} */
@@ -163,15 +204,26 @@
         function initPoints() {
             if (typeof pointsData !== 'undefined') {
                 pointsData.forEach(function(point) {
-                    addMarker(point.lat, point.lng, point.name, point.id, point.deep, point.filters, point.comments);
+                    addMarker(point.lat, point.lng, point.name, point.id, point.deep, point.filters, point.comments, point.color);
                 });
                 updateNavTree();
             }
         }
 
         // Добавление маркера
-        function addMarker(lat, lng, name, id, deep, filters, comments) {
-            var marker = L.marker([lat, lng]).addTo(markers);
+        function addMarker(lat, lng, name, id, deep, filters, comments, color) {
+            if (!color) color = '#4361ee';
+
+            // Создаем кастомную иконку с выбранным цветом
+            var markerIcon = L.divIcon({
+                html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
+                className: 'custom-marker',
+                iconSize: [15, 15],
+                iconAnchor: [7, 7]
+            });
+
+            var marker = L.marker([lat, lng], {icon: markerIcon}).addTo(markers);
+
             if (name) {
                 marker.bindPopup(name);
             }
@@ -185,7 +237,8 @@
                 marker: marker,
                 deep: deep,
                 filters: filters,
-                comments: comments
+                comments: comments,
+                color: color
             };
 
             markerData.push(markerInfo);
@@ -193,6 +246,7 @@
             // Добавляем обработчик клика для показа информации
             marker.on('click', function() {
                 showPointInfo(markerInfo);
+                toggleMarkerSelection(markerInfo.id);
             });
 
             updateNavTree();
@@ -214,21 +268,22 @@
 
             markerData.forEach(function(marker, index) {
                 const newItem = document.createElement('li');
-
-                const markerInfo = document.createElement('div');
-                markerInfo.classList.add('marker-info');
+                if (selectedMarkerIds.includes(marker.id)) {
+                    newItem.style.backgroundColor = '#e6f0ff';
+                }
 
                 const colorBox = document.createElement('div');
                 colorBox.classList.add('marker-color');
-                colorBox.style.backgroundColor = getRandomColor();
+                colorBox.style.backgroundColor = marker.color;
 
-                const itemText = document.createElement('span');
-                itemText.textContent = `${index+1}. ${marker.name}`;
-                itemText.style.cursor = 'pointer';
-                itemText.onclick = function() {
+                const markerInfo = document.createElement('div');
+                markerInfo.classList.add('marker-info');
+                markerInfo.textContent = `${index+1}. ${marker.name}`;
+                markerInfo.onclick = function() {
                     showPointInfo(marker);
                     map.panTo(marker.marker.getLatLng());
                     marker.marker.openPopup();
+                    toggleMarkerSelection(marker.id);
                 };
 
                 const deleteBtn = document.createElement('button');
@@ -240,9 +295,7 @@
                     }
                 };
 
-                markerInfo.appendChild(colorBox);
-                markerInfo.appendChild(itemText);
-
+                newItem.appendChild(colorBox);
                 newItem.appendChild(markerInfo);
                 newItem.appendChild(deleteBtn);
 
@@ -259,13 +312,48 @@
                 <p><strong>Глубина:</strong> ${marker.deep}</p>
                 <p><strong>Фильтры:</strong> ${marker.filters}</p>
                 <p><strong>Комментарии:</strong> ${marker.comments}</p>
-
+                <p><strong>Цвет маркера:</strong> <span style="color:${marker.color}">${marker.color}</span></p>
             `;
         }
 
-        // Генерация случайного цвета
-        function getRandomColor() {
-            return '#' + Math.floor(Math.random()*16777215).toString(16);
+        // Выбор/снятие выбора маркера
+        function toggleMarkerSelection(markerId) {
+            const index = selectedMarkerIds.indexOf(markerId);
+            if (index === -1) {
+                selectedMarkerIds.push(markerId);
+            } else {
+                selectedMarkerIds.splice(index, 1);
+            }
+            updateNavTree();
+        }
+
+        // Изменение цвета маркеров
+        function changeMarkerColor(color) {
+            if (selectedMarkerIds.length === 0) {
+                alert('Сначала выберите маркеры, нажав на них в списке или на карте');
+                return;
+            }
+
+            selectedMarkerIds.forEach(function(markerId) {
+                const markerInfo = markerData.find(m => m.id === markerId);
+                if (markerInfo) {
+                    // Обновляем цвет в данных
+                    markerInfo.color = color;
+
+                    // Создаем новую иконку с обновленным цветом
+                    var newIcon = L.divIcon({
+                        html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
+                        className: 'custom-marker',
+                        iconSize: [15, 15],
+                        iconAnchor: [7, 7]
+                    });
+
+                    // Устанавливаем новую иконку
+                    markerInfo.marker.setIcon(newIcon);
+                }
+            });
+
+            updateNavTree();
         }
 
         // Удаление маркера
@@ -274,6 +362,13 @@
                 if (markerData[i].id === id) {
                     markers.removeLayer(markerData[i].marker);
                     markerData.splice(i, 1);
+
+                    // Удаляем из выбранных, если есть
+                    const selectedIndex = selectedMarkerIds.indexOf(id);
+                    if (selectedIndex !== -1) {
+                        selectedMarkerIds.splice(selectedIndex, 1);
+                    }
+
                     updateNavTree();
                     document.getElementById('point-info').innerHTML = 'Выберите точку на карте или в списке';
                     break;
@@ -285,6 +380,7 @@
         function clearMarkers() {
             markers.clearLayers();
             markerData = [];
+            selectedMarkerIds = [];
             updateNavTree();
             document.getElementById('point-info').innerHTML = 'Выберите точку на карте или в списке';
         }
@@ -302,6 +398,37 @@
         function disableClickHandler() {
             map.off('click');
         }
+
+        // Обработчики событий для элементов управления цветом
+        document.getElementById('apply-color').addEventListener('click', function() {
+            const color = document.getElementById('marker-color').value;
+            changeMarkerColor(color);
+        });
+
+        document.querySelectorAll('.color-option').forEach(function(option) {
+            option.addEventListener('click', function() {
+                const color = this.getAttribute('data-color');
+                document.getElementById('marker-color').value = color;
+
+                // Обновляем визуальное выделение
+                document.querySelectorAll('.color-option').forEach(function(opt) {
+                    opt.classList.remove('selected');
+                });
+                this.classList.add('selected');
+            });
+        });
+
+        document.getElementById('marker-color').addEventListener('change', function() {
+            const color = this.value;
+
+            // Обновляем визуальное выделение
+            document.querySelectorAll('.color-option').forEach(function(opt) {
+                opt.classList.remove('selected');
+                if (opt.getAttribute('data-color') === color) {
+                    opt.classList.add('selected');
+                }
+            });
+        });
     </script>
 </body>
 </html>
