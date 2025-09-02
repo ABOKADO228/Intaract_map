@@ -18,6 +18,7 @@ class DataManager():
         self.data_file = os.path.join(data_path, "data.json")
         self.current_data = []
         self.ensure_data_file()
+        self.load_data()
 
 
     def ensure_data_file(self):
@@ -154,7 +155,7 @@ class MapApp(QMainWindow):
 
         # Вставляем данные точек в HTML
         points_json = json.dumps(self.points, ensure_ascii=False)
-        html_content = html_template.replace('/* {{POINTS_DATA}} */', f'var pointsData = {points_json};')
+        html_content = html_template.replace('/* {{POINTS_DATA}} */', f'var markerData = {points_json};')
 
         # Загружаем карту
         self.map_view.setHtml(html_content, QUrl.fromLocalFile(os.path.abspath(".")))
@@ -177,7 +178,7 @@ class MapApp(QMainWindow):
         """Вызывается после загрузки карты"""
         # Инициализируем точки на карте
         self.map_view.page().runJavaScript("initPoints();")
-        self.import_data()
+        # self.import_data()
 
     def enable_add_point_mode(self):
         """Активирует режим добавления точки"""
@@ -205,6 +206,7 @@ class MapApp(QMainWindow):
             "name": data.get("name"),
             "deep": data.get("deep"),
             "filters": data.get("filters"),
+            "debit": data.get("debit"),
             "comments": data.get("comments")
         }
 
@@ -217,6 +219,7 @@ class MapApp(QMainWindow):
             '{point_id}',
             {json.dumps(new_point['deep'])},
             {json.dumps(new_point['filters'])},
+            {json.dumps(new_point['debit'])},
             {json.dumps(new_point['comments'])}
 
         );

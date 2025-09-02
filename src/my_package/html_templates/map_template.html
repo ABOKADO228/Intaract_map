@@ -8,15 +8,15 @@
         #web-content {
             display: flex;
             width: 100%;
-            height: 100vh;
+            height: 97vh;
+            justify-self: center;
+            align-self: center;
         }
         #map {
             width: 75%;
-            height: 100vh;
         }
         #side-panel {
             width: 25%;
-            height: 100vh;
             display: flex;
             flex-direction: column;
             padding: 10px;
@@ -175,9 +175,7 @@
         // Инициализация карты
         var map = L.map('map').setView([59.93, 30.34], 12);
         var markers = L.layerGroup().addTo(map);
-        var markerData = [];
         var selectedMarkerIds = [];
-
         // Данные точек (заменяются при загрузке)
         /* {{POINTS_DATA}} */
 
@@ -202,16 +200,16 @@
 
         // Инициализация точек
         function initPoints() {
-            if (typeof pointsData !== 'undefined') {
-                pointsData.forEach(function(point) {
-                    addMarker(point.lat, point.lng, point.name, point.id, point.deep, point.filters, point.comments, point.color);
+            if (typeof markerData !== 'undefined') {
+                markerData.forEach(function(point) {
+                    addMarkerInit(point.lat, point.lng, point.name, point.id, point.deep, point.filters, point.debit, point.comments, "point.color");
                 });
                 updateNavTree();
             }
         }
 
         // Добавление маркера
-        function addMarker(lat, lng, name, id, deep, filters, comments, color) {
+        function addMarker(lat, lng, name, id, deep, filters, debit, comments, color) {
             if (!color) color = '#4361ee';
 
             // Создаем кастомную иконку с выбранным цветом
@@ -237,11 +235,54 @@
                 marker: marker,
                 deep: deep,
                 filters: filters,
+                debit: debit,
                 comments: comments,
                 color: color
             };
 
             markerData.push(markerInfo);
+
+            // Добавляем обработчик клика для показа информации
+            marker.on('click', function() {
+                showPointInfo(markerInfo);
+                toggleMarkerSelection(markerInfo.id);
+            });
+
+            updateNavTree();
+            return marker;
+        }
+
+ // Добавление маркера для инициализации
+        function addMarkerInit(lat, lng, name, id, deep, filters, debit, comments, color) {
+            if (!color) color = '#4361ee';
+
+            // Создаем кастомную иконку с выбранным цветом
+            var markerIcon = L.divIcon({
+                html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
+                className: 'custom-marker',
+                iconSize: [15, 15],
+                iconAnchor: [7, 7]
+            });
+
+            var marker = L.marker([lat, lng], {icon: markerIcon}).addTo(markers);
+
+            if (name) {
+                marker.bindPopup(name);
+            }
+
+            // Сохраняем данные маркера
+            var markerInfo = {
+                id: id,
+                lat: lat,
+                lng: lng,
+                name: name,
+                marker: marker,
+                deep: deep,
+                filters: filters,
+                debit: debit,
+                comments: comments,
+                color: color
+            };
 
             // Добавляем обработчик клика для показа информации
             marker.on('click', function() {
@@ -292,6 +333,7 @@
                 deleteBtn.onclick = function() {
                     if (bridge) {
                         bridge.removePoint(marker.id);
+                        updateNavTree();
                     }
                 };
 
@@ -311,6 +353,7 @@
                 <p><strong>Координаты:</strong> ${marker.lat.toFixed(6)}, ${marker.lng.toFixed(6)}</p>
                 <p><strong>Глубина:</strong> ${marker.deep}</p>
                 <p><strong>Фильтры:</strong> ${marker.filters}</p>
+                <p><strong>Дебит:</strong> ${marker.debit}</p>
                 <p><strong>Комментарии:</strong> ${marker.comments}</p>
                 <p><strong>Цвет маркера:</strong> <span style="color:${marker.color}">${marker.color}</span></p>
             `;
