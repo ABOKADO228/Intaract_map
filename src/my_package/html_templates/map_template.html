@@ -175,7 +175,7 @@
         var map = L.map('map').setView([59.93, 30.34], 12);
         var markers = L.layerGroup().addTo(map);
         var selectedMarkerIds = [];
-
+        var markerData = [];
         // Данные точек (заменяются при загрузке)
         /* {{POINTS_DATA}} */
 
@@ -202,12 +202,9 @@
 
         // Инициализация точек
         function initPoints() {
-            if (typeof markerData !== 'undefined' && markerData.length > 0) {
-                // Используем фрагмент документа для быстрой вставки
-                var tempContainer = document.createDocumentFragment();
-
-                markerData.forEach(function(point, index) {
-                    addMarkerInit(
+            if (typeof initialMarkerData !== 'undefined' && initialMarkerData.length > 0) {
+                initialMarkerData.forEach(function(point, index) {
+                    addMarker(
                         point.lat,
                         point.lng,
                         point.name,
@@ -216,54 +213,15 @@
                         point.filters,
                         point.debit,
                         point.comments,
-                        point.color || '#4361ee'
+                        point.color
                     );
                 });
+                initialMarkerData = [];
 
                 updateNavTree();
             }
         }
 
-        // Добавление маркера инициализации (универсальная функция)
-        function addMarkerInit(lat, lng, name, id, deep, filters, debit, comments, color) {
-            if (!color) color = '#4361ee';
-
-            // Создаем кастомную иконку с выбранным цветом
-            var markerIcon = L.divIcon({
-                html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
-                className: 'custom-marker',
-                iconSize: [15, 15],
-                iconAnchor: [7, 7]
-            });
-
-            var marker = L.marker([lat, lng], {icon: markerIcon}).addTo(markers);
-
-            if (name) {
-                marker.bindPopup(name);
-            }
-
-            // Сохраняем данные маркера
-            var markerInfo = {
-                id: id,
-                lat: lat,
-                lng: lng,
-                name: name,
-                marker: marker,
-                deep: deep,
-                filters: filters,
-                debit: debit,
-                comments: comments,
-                color: color
-            };
-
-            // Добавляем обработчик клика для показа информации
-            marker.on('click', function() {
-                showPointInfo(markerInfo);
-                toggleMarkerSelection(markerInfo.id);
-            });
-
-            return marker;
-        }
 
         // Добавление маркера (универсальная функция)
         function addMarker(lat, lng, name, id, deep, filters, debit, comments, color) {
@@ -304,21 +262,27 @@
                 showPointInfo(markerInfo);
                 toggleMarkerSelection(markerInfo.id);
             });
+
             updateNavTree();
             return marker;
         }
 
         // Обновление навигационного дерева с использованием DocumentFragment
-        function updateNavTree() {
+       function updateNavTree() {
             const navTree = document.getElementById('nav-tree');
-            const fragment = document.createDocumentFragment();
+
+            // Создаем временный контейнер для новых элементов
+            const tempContainer = document.createElement('div');
 
             if (markerData.length === 0) {
                 const emptyItem = document.createElement('li');
                 emptyItem.textContent = 'Добавьте маркеры, чтобы увидеть элементы дерева';
                 emptyItem.classList.add('empty');
-                fragment.appendChild(emptyItem);
+                tempContainer.appendChild(emptyItem);
             } else {
+                // Создаем фрагмент документа для эффективного добавления элементов
+                const fragment = document.createDocumentFragment();
+
                 markerData.forEach(function(marker, index) {
                     const newItem = document.createElement('li');
                     if (selectedMarkerIds.includes(marker.id)) {
@@ -332,21 +296,27 @@
                     const markerInfo = document.createElement('div');
                     markerInfo.classList.add('marker-info');
                     markerInfo.textContent = `${index+1}. ${marker.name}`;
-                    markerInfo.onclick = function() {
-                        showPointInfo(marker);
-                        map.panTo(marker.marker.getLatLng());
-                        marker.marker.openPopup();
-                        toggleMarkerSelection(marker.id);
-                    };
+
+                    // Используем замыкание для правильной привязки маркера
+                    markerInfo.onclick = (function(marker) {
+                        return function() {
+                            showPointInfo(marker);
+                            toggleMarkerSelection(marker.id);
+                            map.panTo(marker.marker.getLatLng());
+                            marker.marker.openPopup();
+                        };
+                    })(marker);
 
                     const deleteBtn = document.createElement('button');
                     deleteBtn.textContent = 'Удалить';
                     deleteBtn.classList.add('delete-btn');
-                    deleteBtn.onclick = function() {
-                        if (bridge) {
-                            bridge.removePoint(marker.id);
-                        }
-                    };
+                    deleteBtn.onclick = (function(markerId) {
+                        return function() {
+                            if (bridge) {
+                                bridge.removePoint(markerId);
+                            }
+                        };
+                    })(marker.id);
 
                     newItem.appendChild(colorBox);
                     newItem.appendChild(markerInfo);
@@ -354,12 +324,14 @@
 
                     fragment.appendChild(newItem);
                 });
+
+                tempContainer.appendChild(fragment);
             }
 
-            // Быстрая замена содержимого
+            // Заменяем содержимое навигационного дерева
             navTree.innerHTML = '';
-            navTree.appendChild(fragment);
-        }
+            navTree.appendChild(tempContainer);
+          }
 
         // Показать информацию о точке
         function showPointInfo(marker) {
@@ -408,9 +380,9 @@
                     });
 
                     markerInfo.marker.setIcon(newIcon);
+                    updateNavTree();
                 }
             });
-
             // Добавляем в очередь обновлений
             colorChangeQueue.push({color: color, markerIds: [...selectedMarkerIds]});
 
@@ -418,7 +390,6 @@
             if (colorChangeTimer) clearTimeout(colorChangeTimer);
             colorChangeTimer = setTimeout(sendColorUpdates, 1000);
 
-            updateNavTree();
         }
 
         // Отправка обновлений цветов с дебаунсингом

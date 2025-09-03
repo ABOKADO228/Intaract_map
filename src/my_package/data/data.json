@@ -1,24 +1,35 @@
 [
     {
-        "lat": 59.9294097491239,
-        "lng": 30.292455423020428,
-        "name": "1",
-        "deep": "2",
-        "filters": "3",
-        "debit": "4",
-        "comments": "5",
-        "color": "#2ed573",
-        "id": "65971c20-9704-42d7-855f-58bbb15d9d3d"
+        "lat": 59.91306536864758,
+        "lng": 30.376968578748052,
+        "name": "",
+        "deep": "",
+        "filters": "",
+        "debit": "",
+        "comments": "",
+        "color": "#ffa502",
+        "id": "4dc3119f-e658-48fa-913f-06b50c1b825e"
     },
     {
-        "lat": 59.90945564745727,
-        "lng": 30.410281998538508,
-        "name": "2",
-        "deep": "3",
-        "filters": "4",
-        "debit": "5",
-        "comments": "6",
-        "color": "#a55eea",
-        "id": "fc6edb9a-d33e-4c55-a877-ab7cd5cf6e8a"
+        "lat": 59.875706823569736,
+        "lng": 30.385527862600814,
+        "name": "",
+        "deep": "",
+        "filters": "",
+        "debit": "",
+        "comments": "",
+        "color": "#2ed573",
+        "id": "56865d14-5fd5-4219-a831-920f33923eaf"
+    },
+    {
+        "lat": 59.86657653888951,
+        "lng": 30.322320408471803,
+        "name": "",
+        "deep": "",
+        "filters": "",
+        "debit": "",
+        "comments": "",
+        "color": "#2ed573",
+        "id": "a869bd88-65dc-425f-a126-23d7de6d8be2"
     }
 ]

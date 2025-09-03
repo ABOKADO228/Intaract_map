@@ -165,7 +165,7 @@ class MapApp(QMainWindow):
 
         # Вставляем данные точек в HTML
         points_json = json.dumps(self.points, ensure_ascii=False)
-        html_content = html_template.replace('/* {{POINTS_DATA}} */', f'var markerData = {points_json};')
+        html_content = html_template.replace('/* {{POINTS_DATA}} */', f'var initialMarkerData = {points_json};')
 
         # Загружаем карту
         self.map_view.setHtml(html_content, QUrl.fromLocalFile(os.path.abspath(".")))
@@ -316,7 +316,7 @@ class DialogWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Point input window")
-        self.resize(550, 800)
+        self.resize(550, 950)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
         # Центральный виджет и компоновка
