@@ -59,6 +59,22 @@ class DataManager():
         self.current_data = points_data
         self.save_data()
 
+    def search_points(self, query):
+        """Ищет точки по запросу"""
+        if not query:
+            return self.current_data
+
+        query = query.lower()
+        results = []
+        for point in self.current_data:
+            if (query in point.get('name', '').lower() or
+                    query in point.get('deep', '').lower() or
+                    query in point.get('filters', '').lower() or
+                    query in point.get('debit', '').lower() or
+                    query in point.get('comments', '').lower()):
+                results.append(point)
+
+        return results
 
 class Bridge(QObject):
     def __init__(self, parent=None):

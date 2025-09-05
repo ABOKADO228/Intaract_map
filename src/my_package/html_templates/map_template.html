@@ -4,6 +4,7 @@
     <title>Интерактивная карта</title>
     <meta charset="utf-8">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         #web-content {
             display: flex;
@@ -27,23 +28,26 @@
         .nav-tree-container {
             margin-bottom: 15px;
             border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 10px;
+            border-radius: 8px;
+            padding: 12px;
             background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
         .point-info-container {
             border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 10px;
+            border-radius: 8px;
+            padding: 12px;
             background-color: #fff;
             flex-grow: 1;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
         .color-controls {
             margin-top: 15px;
-            padding: 10px;
+            padding: 12px;
             border: 1px solid #ddd;
-            border-radius: 5px;
+            border-radius: 8px;
             background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
         .color-picker {
             display: flex;
@@ -53,6 +57,7 @@
         .color-picker label {
             margin-right: 10px;
             font-weight: bold;
+            font-size: 14px;
         }
         .color-options {
             display: flex;
@@ -66,13 +71,21 @@
             border-radius: 50%;
             cursor: pointer;
             border: 2px solid transparent;
+            transition: transform 0.2s;
+        }
+        .color-option:hover {
+            transform: scale(1.1);
         }
         .color-option.selected {
             border-color: #333;
+            transform: scale(1.1);
         }
         #nav-tree {
             list-style-type: none;
             padding: 0;
+            margin: 10px 0 0 0;
+            max-height: 300px;
+            overflow-y: auto;
         }
         #nav-tree li {
             display: flex;
@@ -80,19 +93,32 @@
             padding: 8px;
             margin-bottom: 5px;
             background-color: #f9f9f9;
-            border-radius: 4px;
-            border-left: 4px solid #4361ee;
+            border-radius: 6px;
+            border-left: 3px solid #4361ee;
+            transition: all 0.2s;
+        }
+        #nav-tree li:hover {
+            background-color: #edf2ff;
+        }
+        #nav-tree li.selected {
+            background-color: #e6f0ff;
+            border-left: 3px solid #2d4fc7;
         }
         .marker-color {
-            width: 15px;
-            height: 15px;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
-            margin-right: 10px;
+            margin-right: 8px;
             border: 1px solid #ccc;
+            flex-shrink: 0;
         }
         .marker-info {
             flex-grow: 1;
             cursor: pointer;
+            font-size: 14px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .delete-btn {
             background: #ff4757;
@@ -101,23 +127,39 @@
             padding: 4px 8px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
+            flex-shrink: 0;
+            margin-left: 5px;
+        }
+        .delete-btn:hover {
+            background: #ff3742;
         }
         .empty {
             color: #777;
             font-style: italic;
+            text-align: center;
+            padding: 10px;
         }
         h3 {
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             color: #333;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+        }
+        h3 i {
+            margin-right: 8px;
+            color: #4361ee;
         }
         #point-info {
             padding: 10px;
             background-color: #f9f9f9;
-            border-radius: 4px;
+            border-radius: 6px;
+            font-size: 14px;
         }
         #point-info p {
             margin: 8px 0;
+            line-height: 1.4;
         }
         #apply-color {
             margin-top: 10px;
@@ -125,9 +167,11 @@
             background: #4361ee;
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
+            width: 100%;
+            transition: background 0.2s;
         }
         #apply-color:hover {
             background: #3a56d4;
@@ -136,18 +180,20 @@
         /* Стили для поиска */
         .search-container {
             margin-bottom: 15px;
-            padding: 10px;
+            padding: 12px;
             border: 1px solid #ddd;
-            border-radius: 5px;
+            border-radius: 8px;
             background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
         .search-input {
             width: 100%;
             padding: 10px;
             border: 1px solid #ddd;
-            border-radius: 4px;
+            border-radius: 6px;
             margin-bottom: 10px;
             font-size: 14px;
+            box-sizing: border-box;
         }
         .search-btn {
             width: 100%;
@@ -155,9 +201,10 @@
             background: #4361ee;
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
+            transition: background 0.2s;
         }
         .search-btn:hover {
             background: #3a56d4;
@@ -165,7 +212,7 @@
         .search-results {
             margin-top: 10px;
             border: 1px solid #ddd;
-            border-radius: 4px;
+            border-radius: 6px;
             max-height: 150px;
             overflow-y: auto;
         }
@@ -173,6 +220,7 @@
             padding: 8px;
             border-bottom: 1px solid #eee;
             cursor: pointer;
+            font-size: 14px;
         }
         .search-result-item:hover {
             background-color: #f0f0f0;
@@ -180,9 +228,182 @@
         .search-result-item:last-child {
             border-bottom: none;
         }
-        .highlighted {
-            background-color: yellow;
+
+        /* Стили для управления видимостью */
+        .visibility-controls {
+            margin-bottom: 15px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .visibility-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .visibility-btn {
+            padding: 8px 12px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .visibility-btn i {
+            margin-right: 5px;
+        }
+        .visibility-btn:hover {
+            background: #5a6268;
+        }
+        .visibility-btn.hide {
+            background: #ff4757;
+        }
+        .visibility-btn.hide:hover {
+            background: #ff3742;
+        }
+        .visibility-btn.show {
+            background: #2ed573;
+        }
+        .visibility-btn.show:hover {
+            background: #27c466;
+        }
+
+        /* Стили для группировки */
+        .group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+        .group-title {
             font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+        }
+        .group-title i {
+            margin-right: 8px;
+            transition: transform 0.3s;
+        }
+        .group-toggle {
+            color: #777;
+            font-size: 12px;
+        }
+        .group-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .group-content.expanded {
+            max-height: 500px;
+        }
+
+        /* Стили для выбранных точек */
+        .selected-points-container {
+            margin-bottom: 15px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .selected-points-list {
+            max-height: 150px;
+            overflow-y: auto;
+            margin: 10px 0;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            padding: 8px;
+        }
+        .selected-point-item {
+            display: flex;
+            align-items: center;
+            padding: 6px;
+            margin-bottom: 5px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border-left: 3px solid #4361ee;
+        }
+        .selected-point-item:last-child {
+            margin-bottom: 0;
+        }
+        .selected-point-name {
+            flex-grow: 1;
+            font-size: 14px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .remove-selected-btn {
+            background: none;
+            border: none;
+            color: #ff4757;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 5px;
+        }
+        .remove-selected-btn:hover {
+            color: #ff3742;
+        }
+        .selection-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .selection-btn {
+            padding: 8px 12px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .selection-btn:hover {
+            background: #5a6268;
+        }
+        .selection-btn.select {
+            background: #4361ee;
+        }
+        .selection-btn.select:hover {
+            background: #3a56d4;
+        }
+        .selection-btn.deselect {
+            background: #ff4757;
+        }
+        .selection-btn.deselect:hover {
+            background: #ff3742;
+        }
+
+        /* Иконки */
+        .icon-btn {
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px;
+            border-radius: 4px;
+        }
+        .icon-btn:hover {
+            color: #4361ee;
+            background-color: #f0f0f0;
         }
     </style>
 </head>
@@ -191,21 +412,54 @@
         <div id="map"></div>
         <div id="side-panel">
             <div class="search-container">
-                <h3>Поиск точек</h3>
+                <h3><i class="fas fa-search"></i> Поиск точек</h3>
                 <input type="text" id="search-input" class="search-input" placeholder="Введите название, комментарий или другие данные...">
                 <button id="search-btn" class="search-btn">Поиск</button>
                 <div id="search-results" class="search-results" style="display: none;"></div>
             </div>
 
+            <div class="visibility-controls">
+                <h3><i class="fas fa-eye"></i> Управление видимостью</h3>
+                <div class="visibility-buttons">
+                    <button id="hide-all-btn" class="visibility-btn hide"><i class="fas fa-eye-slash"></i> Скрыть все</button>
+                    <button id="show-all-btn" class="visibility-btn show"><i class="fas fa-eye"></i> Показать все</button>
+                    <button id="hide-selected-btn" class="visibility-btn hide"><i class="fas fa-minus-circle"></i> Скрыть выбранные</button>
+                    <button id="show-selected-btn" class="visibility-btn show"><i class="fas fa-plus-circle"></i> Показать выбранные</button>
+                </div>
+            </div>
+
+            <div class="selected-points-container">
+                <h3><i class="fas fa-check-circle"></i> Выбранные точки</h3>
+                <div id="selected-points-list" class="selected-points-list">
+                    <div class="empty">Нет выбранных точек</div>
+                </div>
+                <div class="selection-controls">
+                    <button id="select-all-btn" class="selection-btn select"><i class="fas fa-check-square"></i> Выбрать все</button>
+                    <button id="deselect-all-btn" class="selection-btn deselect"><i class="fas fa-times-circle"></i> Снять выделение</button>
+                </div>
+            </div>
+
             <div class="nav-tree-container">
-                <div class="nav-tree-title">Элементы навигационного дерева:</div>
-                <ul id="nav-tree">
-                    <li class="empty">Добавьте маркеры, чтобы увидеть элементы дерева</li>
-                </ul>
+                <div class="group-header" id="nav-tree-header">
+                    <div class="group-title">
+                        <i class="fas fa-layer-group"></i>
+                        <span>Элементы навигационного дерева</span>
+                    </div>
+                    <div class="group-toggle">
+                        <button class="icon-btn" id="toggle-nav-tree">
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="group-content" id="nav-tree-content">
+                    <ul id="nav-tree">
+                        <li class="empty">Добавьте маркеры, чтобы увидеть элементы дерева</li>
+                    </ul>
+                </div>
             </div>
 
             <div class="color-controls">
-                <h3>Изменение цвета маркеров</h3>
+                <h3><i class="fas fa-palette"></i> Изменение цвета маркеров</h3>
                 <div class="color-picker">
                     <label for="marker-color">Цвет маркера:</label>
                     <input type="color" id="marker-color" value="#4361ee">
@@ -222,15 +476,15 @@
             </div>
 
             <div class="point-info-container">
-                <h3>Информация о точке:</h3>
+                <h3><i class="fas fa-info-circle"></i> Информация о точке</h3>
                 <div id="point-info">Выберите точку на карте или в списке</div>
             </div>
         </div>
     </div>
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
-<script>
-        // Инициализация карты
+    <script>
+        // Инициализация карта
         var map = L.map('map').setView([59.93, 30.34], 12);
         var markers = L.layerGroup().addTo(map);
         var selectedMarkerIds = [];
@@ -278,9 +532,9 @@
                 initialMarkerData = [];
 
                 updateNavTree();
+                updateSelectedPointsList();
             }
         }
-
 
         // Добавление маркера (универсальная функция)
         function addMarker(lat, lng, name, id, deep, filters, debit, comments, color) {
@@ -311,7 +565,8 @@
                 filters: filters,
                 debit: debit,
                 comments: comments,
-                color: color
+                color: color,
+                visible: true
             };
 
             markerData.push(markerInfo);
@@ -326,71 +581,228 @@
             return marker;
         }
 
-        // Обновление навигационного дерева с использованием DocumentFragment
-       function updateNavTree() {
+        // Обновление навигационного дерева
+        function updateNavTree() {
             const navTree = document.getElementById('nav-tree');
 
-            // Создаем временный контейнер для новых элементов
-            const tempContainer = document.createElement('div');
+            // Очищаем дерево
+            navTree.innerHTML = '';
 
             if (markerData.length === 0) {
                 const emptyItem = document.createElement('li');
                 emptyItem.textContent = 'Добавьте маркеры, чтобы увидеть элементы дерева';
                 emptyItem.classList.add('empty');
-                tempContainer.appendChild(emptyItem);
+                navTree.appendChild(emptyItem);
             } else {
-                // Создаем фрагмент документа для эффективного добавления элементов
-                const fragment = document.createDocumentFragment();
-
-                markerData.forEach(function(marker, index) {
-                    const newItem = document.createElement('li');
-                    if (selectedMarkerIds.includes(marker.id)) {
-                        newItem.style.backgroundColor = '#e6f0ff';
+                // Группируем точки по цвету
+                const groupedMarkers = {};
+                markerData.forEach(marker => {
+                    if (!groupedMarkers[marker.color]) {
+                        groupedMarkers[marker.color] = [];
                     }
-
-                    const colorBox = document.createElement('div');
-                    colorBox.classList.add('marker-color');
-                    colorBox.style.backgroundColor = marker.color;
-
-                    const markerInfo = document.createElement('div');
-                    markerInfo.classList.add('marker-info');
-                    markerInfo.textContent = `${index+1}. ${marker.name}`;
-
-                    // Используем замыкание для правильной привязки маркера
-                    markerInfo.onclick = (function(marker) {
-                        return function() {
-                            showPointInfo(marker);
-                            toggleMarkerSelection(marker.id);
-                            map.panTo(marker.marker.getLatLng());
-                            marker.marker.openPopup();
-                        };
-                    })(marker);
-
-                    const deleteBtn = document.createElement('button');
-                    deleteBtn.textContent = 'Удалить';
-                    deleteBtn.classList.add('delete-btn');
-                    deleteBtn.onclick = (function(markerId) {
-                        return function() {
-                            if (bridge) {
-                                bridge.removePoint(markerId);
-                            }
-                        };
-                    })(marker.id);
-
-                    newItem.appendChild(colorBox);
-                    newItem.appendChild(markerInfo);
-                    newItem.appendChild(deleteBtn);
-
-                    fragment.appendChild(newItem);
+                    groupedMarkers[marker.color].push(marker);
                 });
 
-                tempContainer.appendChild(fragment);
-            }
+                // Создаем группы для каждого цвета
+                Object.keys(groupedMarkers).forEach(color => {
+                    const groupMarkers = groupedMarkers[color];
 
-            // Заменяем содержимое навигационного дерева
-            navTree.innerHTML = '';
-            navTree.appendChild(tempContainer);
-          }
+                    // Создаем заголовок группы
+                    const groupHeader = document.createElement('div');
+                    groupHeader.className = 'group-header';
+                    groupHeader.innerHTML = `
+                        <div class="group-title">
+                            <i class="fas fa-circle" style="color: ${color}"></i>
+                            <span>Цвет: ${color}</span>
+                            <span style="margin-left: 8px; color: #777; font-size: 12px;">(${groupMarkers.length})</span>
+                        </div>
+                        <div class="group-toggle">
+                            <button class="icon-btn toggle-group" data-color="${color}">
+                                <i class="fas fa-chevron-down"></i>
+                            </button>
+                            <button class="icon-btn toggle-group-visibility" data-color="${color}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    `;
+
+                    // Создаем контейнер для маркеров группы
+                    const groupContent = document.createElement('div');
+                    groupContent.className = 'group-content'; // По умолчанию свернуто
+                    groupContent.id = `group-${color.replace('#', '')}`;
+
+                    // Добавляем маркеры в группу
+                    groupMarkers.forEach(function(marker, index) {
+                        const listItem = document.createElement('li');
+                        if (selectedMarkerIds.includes(marker.id)) {
+                            listItem.classList.add('selected');
+                        }
+
+                        if (!marker.visible) {
+                            listItem.style.opacity = '0.5';
+                        }
+
+                        const colorBox = document.createElement('div');
+                        colorBox.classList.add('marker-color');
+                        colorBox.style.backgroundColor = marker.color;
+
+                        const markerInfo = document.createElement('div');
+                        markerInfo.classList.add('marker-info');
+                        markerInfo.textContent = `${marker.name}`;
+                        markerInfo.title = marker.name;
+
+                        // Используем замыкание для правильной привязки маркера
+                        markerInfo.onclick = (function(marker) {
+                            return function() {
+                                showPointInfo(marker);
+                                toggleMarkerSelection(marker.id);
+                                map.panTo(marker.marker.getLatLng());
+                                marker.marker.openPopup();
+                            };
+                        })(marker);
+
+                        const visibilityBtn = document.createElement('button');
+                        visibilityBtn.className = 'icon-btn';
+                        visibilityBtn.innerHTML = marker.visible ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+                        visibilityBtn.title = marker.visible ? 'Скрыть точку' : 'Показать точку';
+                        visibilityBtn.onclick = (function(marker) {
+                            return function(e) {
+                                e.stopPropagation();
+                                toggleMarkerVisibility(marker.id);
+                            };
+                        })(marker);
+
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.classList.add('delete-btn');
+                        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                        deleteBtn.title = 'Удалить точку';
+                        deleteBtn.onclick = (function(markerId) {
+                            return function(e) {
+                                e.stopPropagation();
+                                if (bridge) {
+                                    bridge.removePoint(markerId);
+                                }
+                            };
+                        })(marker.id);
+
+                        listItem.appendChild(colorBox);
+                        listItem.appendChild(markerInfo);
+                        listItem.appendChild(visibilityBtn);
+                        listItem.appendChild(deleteBtn);
+
+                        groupContent.appendChild(listItem);
+                    });
+
+                    // Добавляем группу в дерево
+                    navTree.appendChild(groupHeader);
+                    navTree.appendChild(groupContent);
+
+                    // Добавляем обработчики для группы
+                    const toggleBtn = groupHeader.querySelector('.toggle-group');
+                    const visibilityBtn = groupHeader.querySelector('.toggle-group-visibility');
+
+                    toggleBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const groupId = this.getAttribute('data-color');
+                        const content = document.getElementById(`group-${groupId.replace('#', '')}`);
+                        const icon = this.querySelector('i');
+
+                        if (content.classList.contains('expanded')) {
+                            content.classList.remove('expanded');
+                            icon.classList.remove('fa-chevron-up');
+                            icon.classList.add('fa-chevron-down');
+                        } else {
+                            content.classList.add('expanded');
+                            icon.classList.remove('fa-chevron-down');
+                            icon.classList.add('fa-chevron-up');
+                        }
+                    });
+
+                    visibilityBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const groupId = this.getAttribute('data-color');
+                        const groupMarkers = groupedMarkers[groupId];
+                        const allVisible = groupMarkers.every(m => m.visible);
+
+                        groupMarkers.forEach(marker => {
+                            marker.visible = !allVisible;
+                            setMarkerVisibility(marker.id, marker.visible);
+                        });
+
+                        updateNavTree();
+                    });
+
+                    // Обработчик для заголовка группы (альтернативный способ развернуть/свернуть)
+                    groupHeader.addEventListener('click', function(e) {
+                        if (!e.target.closest('.group-toggle')) {
+                            const groupId = color.replace('#', '');
+                            const content = document.getElementById(`group-${groupId}`);
+                            const icon = this.querySelector('.toggle-group i');
+
+                            if (content.classList.contains('expanded')) {
+                                content.classList.remove('expanded');
+                                icon.classList.remove('fa-chevron-up');
+                                icon.classList.add('fa-chevron-down');
+                            } else {
+                                content.classList.add('expanded');
+                                icon.classList.remove('fa-chevron-down');
+                                icon.classList.add('fa-chevron-up');
+                            }
+                        }
+                    });
+                });
+            }
+        }
+
+        // Обновление списка выбранных точек
+        function updateSelectedPointsList() {
+            const selectedList = document.getElementById('selected-points-list');
+
+            // Очищаем список
+            selectedList.innerHTML = '';
+
+            if (selectedMarkerIds.length === 0) {
+                const emptyItem = document.createElement('div');
+                emptyItem.textContent = 'Нет выбранных точек';
+                emptyItem.classList.add('empty');
+                selectedList.appendChild(emptyItem);
+            } else {
+                // Добавляем выбранные точки в список
+                selectedMarkerIds.forEach(markerId => {
+                    const marker = markerData.find(m => m.id === markerId);
+                    if (marker) {
+                        const listItem = document.createElement('div');
+                        listItem.className = 'selected-point-item';
+
+                        const pointName = document.createElement('div');
+                        pointName.className = 'selected-point-name';
+                        pointName.textContent = marker.name;
+                        pointName.title = marker.name;
+
+                        const removeBtn = document.createElement('button');
+                        removeBtn.className = 'remove-selected-btn';
+                        removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+                        removeBtn.title = 'Убрать из выбранных';
+                        removeBtn.onclick = (function(markerId) {
+                            return function() {
+                                toggleMarkerSelection(markerId);
+                            };
+                        })(marker.id);
+
+                         pointName.onclick = (function(marker) {
+                            return function() {
+                                map.panTo(marker.marker.getLatLng());
+                                marker.marker.openPopup();
+                            };
+                        })(marker);
+
+                        listItem.appendChild(pointName);
+                        listItem.appendChild(removeBtn);
+                        selectedList.appendChild(listItem);
+                    }
+                });
+            }
+        }
 
         // Показать информацию о точке
         function showPointInfo(marker) {
@@ -414,6 +826,86 @@
             } else {
                 selectedMarkerIds.splice(index, 1);
             }
+            updateNavTree();
+            updateSelectedPointsList();
+        }
+
+        // Выбрать все точки
+        function selectAllMarkers() {
+            selectedMarkerIds = markerData.map(marker => marker.id);
+            updateNavTree();
+            updateSelectedPointsList();
+        }
+
+        // Снять выделение со всех точек
+        function deselectAllMarkers() {
+            selectedMarkerIds = [];
+            updateNavTree();
+            updateSelectedPointsList();
+        }
+
+        // Установка видимости маркера
+        function setMarkerVisibility(markerId, visible) {
+            const markerInfo = markerData.find(m => m.id === markerId);
+            if (markerInfo) {
+                markerInfo.visible = visible;
+                if (visible) {
+                    markerInfo.marker.addTo(map);
+                } else {
+                    map.removeLayer(markerInfo.marker);
+                }
+            }
+        }
+
+        // Переключение видимости маркера
+        function toggleMarkerVisibility(markerId) {
+            const markerInfo = markerData.find(m => m.id === markerId);
+            if (markerInfo) {
+                markerInfo.visible = !markerInfo.visible;
+                setMarkerVisibility(markerId, markerInfo.visible);
+                updateNavTree();
+            }
+        }
+
+        // Скрыть все маркеры
+        function hideAllMarkers() {
+            markerData.forEach(marker => {
+                marker.visible = false;
+                setMarkerVisibility(marker.id, false);
+            });
+            updateNavTree();
+        }
+
+        // Показать все маркеры
+        function showAllMarkers() {
+            markerData.forEach(marker => {
+                marker.visible = true;
+                setMarkerVisibility(marker.id, true);
+            });
+            updateNavTree();
+        }
+
+        // Скрыть выбранные маркеры
+        function hideSelectedMarkers() {
+            selectedMarkerIds.forEach(id => {
+                const markerInfo = markerData.find(m => m.id === id);
+                if (markerInfo) {
+                    markerInfo.visible = false;
+                    setMarkerVisibility(id, false);
+                }
+            });
+            updateNavTree();
+        }
+
+        // Показать выбранные маркеры
+        function showSelectedMarkers() {
+            selectedMarkerIds.forEach(id => {
+                const markerInfo = markerData.find(m => m.id === id);
+                if (markerInfo) {
+                    markerInfo.visible = true;
+                    setMarkerVisibility(id, true);
+                }
+            });
             updateNavTree();
         }
 
@@ -439,9 +931,9 @@
                     });
 
                     markerInfo.marker.setIcon(newIcon);
-                    updateNavTree();
                 }
             });
+
             // Добавляем в очередь обновлений
             colorChangeQueue.push({color: color, markerIds: [...selectedMarkerIds]});
 
@@ -449,6 +941,7 @@
             if (colorChangeTimer) clearTimeout(colorChangeTimer);
             colorChangeTimer = setTimeout(sendColorUpdates, 1000);
 
+            updateNavTree();
         }
 
         // Отправка обновлений цветов с дебаунсингом
@@ -491,7 +984,7 @@
         function removeMarker(id) {
             const index = markerData.findIndex(m => m.id === id);
             if (index !== -1) {
-                markers.removeLayer(markerData[index].marker);
+                map.removeLayer(markerData[index].marker);
                 markerData.splice(index, 1);
 
                 // Удаляем из выбранных, если есть
@@ -501,16 +994,20 @@
                 }
 
                 updateNavTree();
+                updateSelectedPointsList();
                 document.getElementById('point-info').innerHTML = 'Выберите точку на карте или в списке';
             }
         }
 
         // Очистка всех маркеров
         function clearMarkers() {
-            markers.clearLayers();
+            markerData.forEach(marker => {
+                map.removeLayer(marker.marker);
+            });
             markerData = [];
             selectedMarkerIds = [];
             updateNavTree();
+            updateSelectedPointsList();
             document.getElementById('point-info').innerHTML = 'Выберите точку на карте или в списке';
         }
 
@@ -617,6 +1114,32 @@
             }
         });
 
+        // Обработчики для управления видимостью
+        document.getElementById('hide-all-btn').addEventListener('click', hideAllMarkers);
+        document.getElementById('show-all-btn').addEventListener('click', showAllMarkers);
+        document.getElementById('hide-selected-btn').addEventListener('click', hideSelectedMarkers);
+        document.getElementById('show-selected-btn').addEventListener('click', showSelectedMarkers);
+
+        // Обработчики для управления выделением
+        document.getElementById('select-all-btn').addEventListener('click', selectAllMarkers);
+        document.getElementById('deselect-all-btn').addEventListener('click', deselectAllMarkers);
+
+        // Обработчик для сворачивания/разворачивания навигационного дерева
+        document.getElementById('toggle-nav-tree').addEventListener('click', function() {
+            const content = document.getElementById('nav-tree-content');
+            const icon = this.querySelector('i');
+
+            if (content.classList.contains('expanded')) {
+                content.classList.remove('expanded');
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+            } else {
+                content.classList.add('expanded');
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+            }
+        });
+
         // Скрываем результаты поиска при клике вне области поиска
         document.addEventListener('click', function(e) {
             const searchContainer = document.querySelector('.search-container');
@@ -626,6 +1149,9 @@
                 searchResults.style.display = 'none';
             }
         });
+
+        // Инициализация карты
+        initPoints();
     </script>
 </body>
 </html>
