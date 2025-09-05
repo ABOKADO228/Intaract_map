@@ -191,9 +191,14 @@ class MapApp(QMainWindow):
 
     def enable_add_point_mode(self):
         """Активирует режим добавления точки"""
-        self.statusBar().showMessage("Режим добавления: кликните на карту")
-        self.point_mode = True
-        self.map_view.page().runJavaScript("enableClickHandler();")
+        if self.point_mode == False:
+            self.statusBar().showMessage("Режим добавления: кликните на карту")
+            self.point_mode = True
+            self.map_view.page().runJavaScript("enableClickHandler();")
+        else:
+            self.statusBar().showMessage("Отмена режима добавления точки")
+            self.point_mode = False
+            self.map_view.page().runJavaScript("disableClickHandler();")
 
     def add_point(self, lat, lng):
         if not self.point_mode:
@@ -236,12 +241,13 @@ class MapApp(QMainWindow):
         """
         self.map_view.page().runJavaScript(js_code)
         self.statusBar().showMessage(f"Добавлена точка: {new_point['name']}")
-        self.point_mode = False
+        self.map_view.page().runJavaScript("disableClickHandler();")
         self.points = self.data_manager.current_data
         self.dialog_window.close()
+        self.point_mode = False
+
 
     def cancel_point_addition(self):
-        if self.point_mode:
             self.statusBar().showMessage("Добавление точки отменено")
             self.point_mode = False
             self.map_view.page().runJavaScript("disableClickHandler();")
