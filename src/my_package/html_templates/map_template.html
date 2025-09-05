@@ -132,12 +132,71 @@
         #apply-color:hover {
             background: #3a56d4;
         }
+
+        /* Стили для поиска */
+        .search-container {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fff;
+        }
+        .search-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .search-btn {
+            width: 100%;
+            padding: 8px 12px;
+            background: #4361ee;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .search-btn:hover {
+            background: #3a56d4;
+        }
+        .search-results {
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .search-result-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+        }
+        .search-result-item:hover {
+            background-color: #f0f0f0;
+        }
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        .highlighted {
+            background-color: yellow;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div id="web-content">
         <div id="map"></div>
         <div id="side-panel">
+            <div class="search-container">
+                <h3>Поиск точек</h3>
+                <input type="text" id="search-input" class="search-input" placeholder="Введите название, комментарий или другие данные...">
+                <button id="search-btn" class="search-btn">Поиск</button>
+                <div id="search-results" class="search-results" style="display: none;"></div>
+            </div>
+
             <div class="nav-tree-container">
                 <div class="nav-tree-title">Элементы навигационного дерева:</div>
                 <ul id="nav-tree">
@@ -469,6 +528,53 @@
             map.off('click');
         }
 
+        // Функция поиска точек
+        function searchPoints() {
+            const searchText = document.getElementById('search-input').value.toLowerCase().trim();
+            const resultsContainer = document.getElementById('search-results');
+
+            if (!searchText) {
+                resultsContainer.style.display = 'none';
+                return;
+            }
+
+            // Ищем точки, содержащие текст поиска в любом поле
+            const results = markerData.filter(marker =>
+                (marker.name && marker.name.toLowerCase().includes(searchText)) ||
+                (marker.deep && marker.deep.toLowerCase().includes(searchText)) ||
+                (marker.filters && marker.filters.toLowerCase().includes(searchText)) ||
+                (marker.debit && marker.debit.toLowerCase().includes(searchText)) ||
+                (marker.comments && marker.comments.toLowerCase().includes(searchText))
+            );
+
+            // Отображаем результаты
+            if (results.length === 0) {
+                resultsContainer.innerHTML = '<div class="search-result-item">Ничего не найдено</div>';
+            } else {
+                resultsContainer.innerHTML = '';
+                results.forEach(marker => {
+                    const resultItem = document.createElement('div');
+                    resultItem.className = 'search-result-item';
+                    resultItem.textContent = marker.name;
+
+                    // Добавляем обработчик клика для перехода к точке
+                    resultItem.addEventListener('click', function() {
+                        showPointInfo(marker);
+                        toggleMarkerSelection(marker.id);
+                        map.panTo(marker.marker.getLatLng());
+                        marker.marker.openPopup();
+
+                        // Скрываем результаты после выбора
+                        resultsContainer.style.display = 'none';
+                    });
+
+                    resultsContainer.appendChild(resultItem);
+                });
+            }
+
+            resultsContainer.style.display = 'block';
+        }
+
         // Обработчики событий для элементов управления цветом
         document.getElementById('apply-color').addEventListener('click', function() {
             const color = document.getElementById('marker-color').value;
@@ -500,6 +606,25 @@
                     opt.classList.add('selected');
                 }
             });
+        });
+
+        // Обработчики событий для поиска
+        document.getElementById('search-btn').addEventListener('click', searchPoints);
+
+        document.getElementById('search-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchPoints();
+            }
+        });
+
+        // Скрываем результаты поиска при клике вне области поиска
+        document.addEventListener('click', function(e) {
+            const searchContainer = document.querySelector('.search-container');
+            const searchResults = document.getElementById('search-results');
+
+            if (!searchContainer.contains(e.target)) {
+                searchResults.style.display = 'none';
+            }
         });
     </script>
 </body>
