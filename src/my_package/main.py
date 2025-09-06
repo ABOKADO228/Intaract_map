@@ -153,11 +153,28 @@ class MapApp(QMainWindow):
         self.btn_add_point = QPushButton("Добавить точку")
         self.btn_add_point.clicked.connect(self.enable_add_point_mode)
 
-        self.btn_clear = QPushButton("Очистить карту")
-        self.btn_clear.clicked.connect(self.clear_map)
-
-        for btn in [self.btn_add_point, self.btn_clear]:
+        for btn in [self.btn_add_point]:
             btn.setMinimumHeight(35)
+            btn.setMinimumWidth(180)
+            btn.setStyleSheet("""
+    QPushButton {
+        padding: 8px 12px;
+        background: #4361ee;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        width: 100%;
+        transition: background 0.2s;
+    }
+    QPushButton:hover {
+        background-color: #2980b9;
+    }
+    QPushButton:pressed {
+        background-color: #1c6ea4;
+    }
+""")
             toolbar_layout.addWidget(btn)
 
         toolbar_layout.addStretch()
@@ -211,10 +228,48 @@ class MapApp(QMainWindow):
             self.statusBar().showMessage("Режим добавления: кликните на карту")
             self.point_mode = True
             self.map_view.page().runJavaScript("enableClickHandler();")
+            self.btn_add_point.setStyleSheet("""
+                QPushButton {
+                    padding: 8px 12px;
+                    background: #1c6ea4;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    width: 100%;
+                    transition: background 0.2s;
+                }
+                QPushButton:hover {
+                    background-color: #2980b9;
+                }
+                QPushButton:pressed {
+                    background-color: #1c6ea4;
+                }
+            """)
         else:
             self.statusBar().showMessage("Отмена режима добавления точки")
             self.point_mode = False
             self.map_view.page().runJavaScript("disableClickHandler();")
+            self.btn_add_point.setStyleSheet("""
+                QPushButton {
+                    padding: 8px 12px;
+                    background: #4361ee;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    width: 100%;
+                    transition: background 0.2s;
+                }
+                QPushButton:hover {
+                    background-color: #2980b9;
+                }
+                QPushButton:pressed {
+                    background-color: #1c6ea4;
+                }
+            """)
 
     def add_point(self, lat, lng):
         if not self.point_mode:
