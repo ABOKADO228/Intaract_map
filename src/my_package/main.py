@@ -10,6 +10,17 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QPushButton, QMessageBox, QSizePolicy, QStatusBar)
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 import uuid
+import subprocess
+
+# Глобальные переменные для директорий
+base_dir = Path(__file__).parent
+data_dir = os.path.join(base_dir, "data")
+file_dir = os.path.join(data_dir, "files")
+resources_dir = os.path.join(base_dir, "html_templates")
+
+os.makedirs(data_dir, exist_ok=True)
+os.makedirs(file_dir, exist_ok=True)
+os.makedirs(resources_dir, exist_ok=True)
 
 
 class DataManager():
@@ -73,10 +84,12 @@ class DataManager():
                     query in point.get('deep', '').lower() or
                     query in point.get('filters', '').lower() or
                     query in point.get('debit', '').lower() or
-                    query in point.get('comments', '').lower()):
+                    query in point.get('comments', '').lower() or
+                    query in point.get('fileName', '').lower()):
                 results.append(point)
 
         return results
+
 
 class Bridge(QObject):
     def __init__(self, parent=None):
@@ -98,6 +111,28 @@ class Bridge(QObject):
             self.parent.update_color(data)
         except json.JSONDecodeError as e:
             print(f"Ошибка parsing JSON: {e}")
+
+    @pyqtSlot(str)
+    def openFileInWord(self, fileName):
+        """Открывает файл в Word"""
+        try:
+            file_path = os.path.join(file_dir, fileName)
+            if os.path.exists(file_path):
+                # Для Windows используем os.startfile
+                if sys.platform == "win32":
+                    os.startfile(file_path)
+                else:
+                    # Для других платформ используем subprocess
+                    if sys.platform == "darwin":  # macOS
+                        subprocess.call(('open', file_path))
+                    else:  # Linux
+                        subprocess.call(('xdg-open', file_path))
+                self.parent.statusBar().showMessage(f"Открытие файла: {fileName}")
+            else:
+                self.parent.statusBar().showMessage(f"Файл не найден: {fileName}")
+        except Exception as e:
+            print(f"Ошибка при открытии файла: {e}")
+            self.parent.statusBar().showMessage(f"Ошибка при открытии файла: {fileName}")
 
 
 class MapApp(QMainWindow):
@@ -211,8 +246,7 @@ class MapApp(QMainWindow):
     def read_file(self, filename):
         """Читает файл из директории ресурсов"""
         try:
-            base_path = Path(__file__).parent
-            file_path = os.path.join(base_path, "html_templates", filename)
+            file_path = os.path.join(resources_dir, filename)
             with open(file_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
@@ -295,7 +329,8 @@ class MapApp(QMainWindow):
             "filters": data.get("filters"),
             "debit": data.get("debit"),
             "comments": data.get("comments"),
-            "color": data.get("color", "#4361ee")
+            "color": data.get("color", "#4361ee"),
+            "fileName": data.get("fileName")
         }
 
         point_id = self.data_manager.add_point(new_point)
@@ -309,7 +344,8 @@ class MapApp(QMainWindow):
             {json.dumps(new_point['filters'])},
             {json.dumps(new_point['debit'])},
             {json.dumps(new_point['comments'])},
-            {json.dumps(new_point['color'])}
+            {json.dumps(new_point['color'])},
+            {json.dumps(new_point['fileName'])}
         );
         """
         self.map_view.page().runJavaScript(js_code)
@@ -319,11 +355,10 @@ class MapApp(QMainWindow):
         self.dialog_window.close()
         self.point_mode = False
 
-
     def cancel_point_addition(self):
-            self.statusBar().showMessage("Добавление точки отменено")
-            self.point_mode = False
-            self.map_view.page().runJavaScript("disableClickHandler();")
+        self.statusBar().showMessage("Добавление точки отменено")
+        self.point_mode = False
+        self.map_view.page().runJavaScript("disableClickHandler();")
 
     def remove_point(self, point_id):
         """Удаляет точку по ID"""
@@ -386,38 +421,34 @@ class DialogBridge(QObject):
             data = json.loads(json_data)
             file_data = data.get('fileData')
 
-            if not file_data:
-                print("Нет данных о файле")
-                return
+            if file_data:
+                # Извлекаем base64 данные из Data URL
+                if file_data.startswith('data:'):
+                    # Разделяем по запятой и берем вторую часть
+                    base64_data = file_data.split(',', 1)[1]
+                else:
+                    # Если это уже чистый base64 (без префикса)
+                    base64_data = file_data
 
-            # Извлекаем base64 данные из Data URL
-            if file_data.startswith('data:'):
-                # Разделяем по запятой и берем вторую часть
-                base64_data = file_data.split(',', 1)[1]
-            else:
-                # Если это уже чистый base64 (без префикса)
-                base64_data = file_data
+                try:
+                    # Декодируем base64
+                    file_bytes = base64.b64decode(base64_data)
+                    print(f"Файл успешно декодирован, размер: {len(file_bytes)} байт")
 
-            try:
-                # Декодируем base64
-                file_bytes = base64.b64decode(base64_data)
-                print(f"Файл успешно декодирован, размер: {len(file_bytes)} байт")
+                    # Сохраняем файл
+                    file_name = data.get('fileName', 'document.docx')
+                    with open(os.path.join(file_dir, file_name), 'wb') as f:
+                        f.write(file_bytes)
+                    print(f"Файл сохранен как: {os.path.join(file_dir, file_name)}")
 
-                # Сохраняем файл
-                file_name = data.get('fileName', 'document.docx')
-                with open(os.path.join(file_dir, file_name), 'wb') as f:
-                    f.write(file_bytes)
-                print(f"Файл сохранен как: {os.path.join(file_dir, file_name)}")
-                self.formDataSubmitted.emit(data)
+                except binascii.Error as e:
+                    print(f"Ошибка декодирования base64: {e}")
+                    # Возможно, данные повреждены или имеют неправильный формат
 
-            except binascii.Error as e:
-                print(f"Ошибка декодирования base64: {e}")
-                # Возможно, данные повреждены или имеют неправильный формат
+            self.formDataSubmitted.emit(data)
 
         except json.JSONDecodeError as e:
             print(f"Ошибка parsing JSON: {e}")
-
-
 
 
 class DialogWindow(QMainWindow):
@@ -456,8 +487,7 @@ class DialogWindow(QMainWindow):
     def read_file(self, filename):
         """Читает файл из директории ресурсов"""
         try:
-            base_path = Path(__file__).parent
-            file_path = os.path.join(base_path, "html_templates", filename)
+            file_path = os.path.join(resources_dir, filename)
             with open(file_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
@@ -473,15 +503,6 @@ class DialogWindow(QMainWindow):
 
 
 if __name__ == "__main__":
-    # Создаем необходимые директории
-    base_dir = Path(__file__).parent
-    data_dir = os.path.join(base_dir, "data")
-    file_dir = os.path.join(data_dir, "files")
-    resources_dir = os.path.join(base_dir, "html_templates")
-
-    os.makedirs(data_dir, exist_ok=True)
-    os.makedirs(resources_dir, exist_ok=True)
-
     # Создаем менеджер данных
     data_manager = DataManager(data_dir)
 

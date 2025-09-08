@@ -64,5 +64,53 @@
         "comments": "d",
         "color": "#4361ee",
         "id": "7dec90b8-278d-4991-a7e0-8a49bfdf281b"
+    },
+    {
+        "lat": 59.89241636307434,
+        "lng": 30.35016639878438,
+        "name": "fd",
+        "deep": "d",
+        "filters": "d",
+        "debit": "d",
+        "comments": "d",
+        "color": "#4361ee",
+        "fileName": "3lekcija_1.docx",
+        "id": "f670befd-b496-4f10-9228-b0cab73e8619"
+    },
+    {
+        "lat": 59.920294277421824,
+        "lng": 30.311348897228843,
+        "name": "ол",
+        "deep": "ло",
+        "filters": "ол",
+        "debit": "ол",
+        "comments": "ол",
+        "color": "#4361ee",
+        "fileName": "3lekcija_1.docx",
+        "id": "d8849438-5172-4759-9487-336c02d8eadb"
+    },
+    {
+        "lat": 59.880743313658314,
+        "lng": 30.37742341803528,
+        "name": "ьт",
+        "deep": "ьт",
+        "filters": "бьт",
+        "debit": "ьб",
+        "comments": "льбт",
+        "color": "#4361ee",
+        "fileName": "Lab_rab_2_Znakomstvo_s_DBeaver.docx",
+        "id": "90eac80a-8583-4f91-9f3d-cee45a3fb6be"
+    },
+    {
+        "lat": 59.920566658519405,
+        "lng": 30.381417561483744,
+        "name": "выа",
+        "deep": "ыва",
+        "filters": "ыва",
+        "debit": "ыва",
+        "comments": "ыва",
+        "color": "#2ed573",
+        "fileName": "CSV в UTF-8.docx",
+        "id": "ac8b4e05-17f6-41aa-9f8c-fa31d63b7c9d"
     }
 ]

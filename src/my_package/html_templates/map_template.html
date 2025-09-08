@@ -405,6 +405,22 @@
             color: #4361ee;
             background-color: #f0f0f0;
         }
+
+        /* Стили для ссылки на файл */
+        .file-link {
+            color: #4361ee;
+            text-decoration: underline;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        .file-link:hover {
+            color: #3a56d4;
+        }
+        .file-info {
+            margin-top: 5px;
+            font-size: 13px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -526,7 +542,8 @@
                         point.filters,
                         point.debit,
                         point.comments,
-                        point.color
+                        point.color,
+                        point.fileName  // Добавляем fileName
                     );
                 });
                 initialMarkerData = [];
@@ -537,7 +554,7 @@
         }
 
         // Добавление маркера (универсальная функция)
-        function addMarker(lat, lng, name, id, deep, filters, debit, comments, color) {
+        function addMarker(lat, lng, name, id, deep, filters, debit, comments, color, fileName) {
             if (!color) color = '#4361ee';
 
             // Создаем кастомную иконку с выбранным цветом
@@ -566,6 +583,7 @@
                 debit: debit,
                 comments: comments,
                 color: color,
+                fileName: fileName || null,  // Добавляем fileName
                 visible: true
             };
 
@@ -807,6 +825,24 @@
         // Показать информацию о точке
         function showPointInfo(marker) {
             const pointInfo = document.getElementById('point-info');
+
+            // Создаем HTML для информации о файле
+            let fileHtml = '';
+            if (marker.fileName) {
+                fileHtml = `
+                    <p>
+                        <strong>Прикрепленный файл:</strong>
+                        <span class="file-link" onclick="openFile('${marker.fileName}')">
+                            ${marker.fileName}
+                        </span>
+                        <br>
+                        <span class="file-info">Нажмите на имя файла, чтобы открыть в Word</span>
+                    </p>
+                `;
+            } else {
+                fileHtml = '<p><strong>Прикрепленный файл:</strong> отсутствует</p>';
+            }
+
             pointInfo.innerHTML = `
                 <p><strong>Название:</strong> ${marker.name}</p>
                 <p><strong>Координаты:</strong> ${marker.lat.toFixed(6)}, ${marker.lng.toFixed(6)}</p>
@@ -814,8 +850,19 @@
                 <p><strong>Фильтры:</strong> ${marker.filters}</p>
                 <p><strong>Дебит:</strong> ${marker.debit}</p>
                 <p><strong>Комментарии:</strong> ${marker.comments}</p>
+                ${fileHtml}
                 <p><strong>Цвет маркера:</strong> <span style="color:${marker.color}">${marker.color}</span></p>
             `;
+        }
+
+        // Функция для открытия файла
+        function openFile(fileName) {
+            if (bridge && typeof bridge.openFileInWord === 'function') {
+                bridge.openFileInWord(fileName);
+            } else {
+                console.error("Функция открытия файла недоступна");
+                alert("Не удалось открыть файл. Функция недоступна.");
+            }
         }
 
         // Выбор/снятие выбора маркера
@@ -973,7 +1020,8 @@
                 filters: marker.filters,
                 debit: marker.debit,
                 comments: marker.comments,
-                color: marker.color
+                color: marker.color,
+                fileName: marker.fileName  // Добавляем fileName
             }));
 
             bridge.changeColor(JSON.stringify(dataToSend));
@@ -1041,7 +1089,8 @@
                 (marker.deep && marker.deep.toLowerCase().includes(searchText)) ||
                 (marker.filters && marker.filters.toLowerCase().includes(searchText)) ||
                 (marker.debit && marker.debit.toLowerCase().includes(searchText)) ||
-                (marker.comments && marker.comments.toLowerCase().includes(searchText))
+                (marker.comments && marker.comments.toLowerCase().includes(searchText)) ||
+                (marker.fileName && marker.fileName.toLowerCase().includes(searchText))
             );
 
             // Отображаем результаты
