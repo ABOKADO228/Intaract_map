@@ -167,6 +167,13 @@
                     <input type="text" name="debit" id="debit" required placeholder="Введите дебит">
                 </div>
 
+                    <!-- Новое поле для загрузки DOCX файла -->
+                <div class="form-group">
+                    <label for="docxFile">Загрузите DOCX файл:</label>
+                    <input type="file" name="docxFile" id="docxFile" accept=".docx">
+                    <div id="fileInfo" class="file-info"></div>
+                </div>
+
                 <div class="form-group">
                     <label for="comments">Комментарии:</label>
                     <textarea name="comments" id="comments" required placeholder="Введите ваши комментарии здесь..."></textarea>
@@ -192,18 +199,57 @@
             });
         });
 
-        // Обработка формы
-        document.getElementById("submitBtn").addEventListener("click", function() {
-            const formData = new FormData(document.getElementById('form'));
-            const data = Object.fromEntries(formData.entries());
-            if (bridge) {
-                bridge.sendFormData(JSON.stringify(data));
+        document.getElementById('docxFile').addEventListener('change', function(e) {
+            const file = this.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Сохраняем файл в localStorage для последующей передачи
+                    localStorage.setItem('selectedFile', e.target.result);
+                    localStorage.setItem('fileName', file.name);
 
-                // Визуальная обратная связь
+                    // Показываем информацию о файле
+                    document.getElementById('fileInfo').textContent =
+                        `Выбран файл: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        document.getElementById("submitBtn").addEventListener("click", function() {
+            const name = document.getElementById('name').value;
+            const deep = document.getElementById('deep').value;
+            const filters = document.getElementById('filters').value;
+            const debit = document.getElementById('debit').value;
+            const comments = document.getElementById('comments').value;
+            const fileInput = document.getElementById('docxFile');
+
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    sendDataToBridge({
+                        name, deep, filters, debit, comments,
+                        fileName: file.name,
+                        fileData: e.target.result
+                    });
+                };
+                reader.readAsDataURL(file);
+            } else {
+                sendDataToBridge({
+                    name, deep, filters, debit, comments,
+                    fileName: null,
+                    fileData: null
+                });
+            }
+        });
+
+        function sendDataToBridge(formData) {
+            if (bridge) {
+                bridge.sendFormData(JSON.stringify(formData));
                 const btn = document.getElementById('submitBtn');
                 btn.textContent = 'Данные отправлены!';
                 btn.style.background = '#4caf50';
-
                 setTimeout(() => {
                     btn.textContent = 'Создать';
                     btn.style.background = '';
@@ -221,7 +267,7 @@
                     btn.style.background = '';
                 }, 1500);
             }
-        });
+        }
     </script>
 </body>
 </html>

@@ -1,5 +1,7 @@
 import sys
 import os
+import base64
+import binascii
 from pathlib import Path
 import json
 from PyQt5.QtCore import QObject, pyqtSlot, QUrl, Qt, pyqtSignal
@@ -382,9 +384,40 @@ class DialogBridge(QObject):
     def sendFormData(self, json_data):
         try:
             data = json.loads(json_data)
-            self.formDataSubmitted.emit(data)
+            file_data = data.get('fileData')
+
+            if not file_data:
+                print("Нет данных о файле")
+                return
+
+            # Извлекаем base64 данные из Data URL
+            if file_data.startswith('data:'):
+                # Разделяем по запятой и берем вторую часть
+                base64_data = file_data.split(',', 1)[1]
+            else:
+                # Если это уже чистый base64 (без префикса)
+                base64_data = file_data
+
+            try:
+                # Декодируем base64
+                file_bytes = base64.b64decode(base64_data)
+                print(f"Файл успешно декодирован, размер: {len(file_bytes)} байт")
+
+                # Сохраняем файл
+                file_name = data.get('fileName', 'document.docx')
+                with open(os.path.join(file_dir, file_name), 'wb') as f:
+                    f.write(file_bytes)
+                print(f"Файл сохранен как: {os.path.join(file_dir, file_name)}")
+                self.formDataSubmitted.emit(data)
+
+            except binascii.Error as e:
+                print(f"Ошибка декодирования base64: {e}")
+                # Возможно, данные повреждены или имеют неправильный формат
+
         except json.JSONDecodeError as e:
             print(f"Ошибка parsing JSON: {e}")
+
+
 
 
 class DialogWindow(QMainWindow):
@@ -443,6 +476,7 @@ if __name__ == "__main__":
     # Создаем необходимые директории
     base_dir = Path(__file__).parent
     data_dir = os.path.join(base_dir, "data")
+    file_dir = os.path.join(data_dir, "files")
     resources_dir = os.path.join(base_dir, "html_templates")
 
     os.makedirs(data_dir, exist_ok=True)
