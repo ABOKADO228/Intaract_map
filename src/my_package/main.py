@@ -2,8 +2,8 @@ import sys
 import os
 import base64
 import binascii
-from pathlib import Path
 import json
+from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSlot, QUrl, Qt, pyqtSignal
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -58,9 +58,31 @@ class DataManager():
         return point_data['id']
 
     def remove_point(self, point_id):
-        """Удаляет точку по ID"""
+        point = next((p for p in self.current_data if p.get('id') == point_id), None)
+        if not point:
+            print(f"Точка с ID {point_id} не найдена.")
+            return
+
+        file_name = point.get('fileName')
+        # Проверяем, используется ли файл другими точками
+        can_delete_file = all(
+            file_name != p.get('fileName')
+            for p in self.current_data
+            if p.get('id') != point_id
+        ) and file_name not in (None, 'Null')
+
+        # Удаляем точку
         self.current_data = [p for p in self.current_data if p.get('id') != point_id]
-        self.save_data()
+
+        if can_delete_file:
+            try:
+                file_path = os.path.join(file_dir, file_name)
+                os.remove(file_path)
+                print(f"Файл '{file_path}' удален.")
+            except OSError as e:
+                print(f"Ошибка при удалении файла: {e}")
+
+        self.save_data()  # Сохраняем данные в любом случае
 
     def clear_all_points(self):
         """Удаляет все точки"""
@@ -369,14 +391,12 @@ class MapApp(QMainWindow):
         """Удаляет точку по ID"""
         # Находим точку для отображения информации
         point = next((p for p in self.points if p.get('id') == point_id), None)
-        print(point_id)
         if point:
             reply = QMessageBox.question(
                 self, "Подтверждение",
                 f"Вы действительно хотите удалить точку '{point['name']}'?",
                 QMessageBox.Yes | QMessageBox.No
             )
-
             if reply == QMessageBox.Yes:
                 self.data_manager.remove_point(point_id)
                 self.map_view.page().runJavaScript(f"removeMarker('{point_id}');")
@@ -440,6 +460,7 @@ class DialogBridge(QObject):
                     # Декодируем base64
                     file_bytes = base64.b64decode(base64_data)
                     print(f"Файл успешно декодирован, размер: {len(file_bytes)} байт")
+
 
                     # Сохраняем файл
                     file_name = data.get('fileName', 'document.docx')
