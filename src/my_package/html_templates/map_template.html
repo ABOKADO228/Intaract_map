@@ -599,6 +599,14 @@
             return marker;
         }
 
+        function removeSelectedPoints() {
+           selectedMarkerIds.forEach(markerId => {
+                const marker = markerData.find(m => m.id === markerId);
+                if (marker) {
+                    bridge.removePoint(marker.id);
+                }
+           });
+        }
         // Обновление навигационного дерева
         function updateNavTree() {
             const navTree = document.getElementById('nav-tree');
@@ -648,6 +656,7 @@
                     const groupContent = document.createElement('div');
                     groupContent.className = 'group-content'; // По умолчанию свернуто
                     groupContent.id = `group-${color.replace('#', '')}`;
+
 
                     // Добавляем маркеры в группу
                     groupMarkers.forEach(function(marker, index) {
@@ -1045,18 +1054,6 @@
                 updateSelectedPointsList();
                 document.getElementById('point-info').innerHTML = 'Выберите точку на карте или в списке';
             }
-        }
-
-        // Очистка всех маркеров
-        function clearMarkers() {
-            markerData.forEach(marker => {
-                map.removeLayer(marker.marker);
-            });
-            markerData = [];
-            selectedMarkerIds = [];
-            updateNavTree();
-            updateSelectedPointsList();
-            document.getElementById('point-info').innerHTML = 'Выберите точку на карте или в списке';
         }
 
         // Включение обработчика кликов

@@ -189,8 +189,10 @@ class MapApp(QMainWindow):
 
         self.btn_add_point = QPushButton("Добавить точку")
         self.btn_add_point.clicked.connect(self.enable_add_point_mode)
+        self.btn_del_point = QPushButton("Удалить выбранные точки")
+        self.btn_del_point.clicked.connect(self.remove_selected_points)
 
-        for btn in [self.btn_add_point]:
+        for btn in [self.btn_add_point,self.btn_del_point]:
             btn.setMinimumHeight(35)
             btn.setMinimumWidth(180)
             btn.setStyleSheet("""
@@ -217,6 +219,9 @@ class MapApp(QMainWindow):
         toolbar_layout.addStretch()
         layout.addWidget(toolbar)
 
+    def remove_selected_points(self):
+        self.map_view.page().runJavaScript(f"removeSelectedPoints();")
+        print("а")
     def setup_web_channel(self):
         """Настраивает WebChannel для связи с JavaScript"""
         self.bridge = Bridge(self)
@@ -364,6 +369,7 @@ class MapApp(QMainWindow):
         """Удаляет точку по ID"""
         # Находим точку для отображения информации
         point = next((p for p in self.points if p.get('id') == point_id), None)
+        print(point_id)
         if point:
             reply = QMessageBox.question(
                 self, "Подтверждение",
