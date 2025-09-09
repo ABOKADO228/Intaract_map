@@ -3,6 +3,7 @@ import os
 import base64
 import binascii
 import json
+from itertools import count
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSlot, QUrl, Qt, pyqtSignal
 from PyQt5.QtWebChannel import QWebChannel
@@ -460,13 +461,18 @@ class DialogBridge(QObject):
                     # Декодируем base64
                     file_bytes = base64.b64decode(base64_data)
                     print(f"Файл успешно декодирован, размер: {len(file_bytes)} байт")
-
+                    file_list = [
+                        f for f in os.listdir(file_dir)
+                    ]
 
                     # Сохраняем файл
                     file_name = data.get('fileName', 'document.docx')
-                    with open(os.path.join(file_dir, file_name), 'wb') as f:
-                        f.write(file_bytes)
-                    print(f"Файл сохранен как: {os.path.join(file_dir, file_name)}")
+                    if (file_name in file_list):
+                        pass
+                    else:
+                        with open(os.path.join(file_dir, file_name), 'wb') as f:
+                            f.write(file_bytes)
+                        print(f"Файл сохранен как: {os.path.join(file_dir, file_name)}")
 
                 except binascii.Error as e:
                     print(f"Ошибка декодирования base64: {e}")
