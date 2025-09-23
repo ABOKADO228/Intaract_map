@@ -1,86 +1,34 @@
 [
     {
-        "lat": 59.89241636307434,
-        "lng": 30.3676858021413,
-        "name": "",
-        "deep": "",
-        "filters": "",
-        "debit": "",
-        "comments": "",
+        "lat": 59.90257214059393,
+        "lng": 30.330929406863053,
+        "name": "d",
+        "deep": "d",
+        "filters": "d",
+        "debit": "d",
+        "comments": "d",
         "color": "#4361ee",
-        "fileName": "Документ Microsoft Word.docx",
-        "id": "724eb6fc-a634-43cc-b66f-a88d2824fe48"
+        "fileNames": [
+            "dataGen_0bf37521.py",
+            "genTitles_4a741fe8.py"
+        ],
+        "fileName": "dataGen_0bf37521.py",
+        "id": "a2ae374e-b8a9-45a3-804b-41562b8996db"
     },
     {
-        "lat": 59.90463734248582,
-        "lng": 30.24608053178155,
-        "name": "",
-        "deep": "",
-        "filters": "",
-        "debit": "",
-        "comments": "",
+        "lat": 59.93508415520617,
+        "lng": 30.348448810219963,
+        "name": "d",
+        "deep": "d",
+        "filters": "d",
+        "debit": "d",
+        "comments": "d",
         "color": "#4361ee",
-        "fileName": "Текстовый документ (2).html",
-        "id": "726fb8d6-a90d-4b9d-bec4-0311d4497717"
-    },
-    {
-        "lat": 59.88156862992227,
-        "lng": 30.276997125940802,
-        "name": "",
-        "deep": "",
-        "filters": "",
-        "debit": "",
-        "comments": "",
-        "color": "#4361ee",
-        "fileName": "deepseek_mermaid_20250917_2907ee.png",
-        "id": "f9d7e763-d769-4df7-9e72-f68816c12748"
-    },
-    {
-        "lat": 59.8896617186849,
-        "lng": 30.294173011584842,
-        "name": "",
-        "deep": "",
-        "filters": "",
-        "debit": "",
-        "comments": "",
-        "color": "#4361ee",
-        "fileName": "Документ Microsoft Word.docx",
-        "id": "e9036a68-02fd-45b9-92d5-f5f4fe0ff86c"
-    },
-    {
-        "lat": 59.92321838077523,
-        "lng": 30.35394509362605,
-        "name": "",
-        "deep": "",
-        "filters": "",
-        "debit": "",
-        "comments": "",
-        "color": "#4361ee",
-        "fileName": null,
-        "id": "b23e4d07-826e-491e-ba1b-fd38eb876e81"
-    },
-    {
-        "lat": 59.92717411049747,
-        "lng": 30.29211190530755,
-        "name": "",
-        "deep": "",
-        "filters": "",
-        "debit": "",
-        "comments": "",
-        "color": "#4361ee",
-        "fileName": null,
-        "id": "7c19ce11-1499-4bf6-8981-b4aa91d843ac"
-    },
-    {
-        "lat": 59.90653033139726,
-        "lng": 30.31787573377359,
-        "name": "",
-        "deep": "",
-        "filters": "",
-        "debit": "",
-        "comments": "",
-        "color": "#4361ee",
-        "fileName": null,
-        "id": "fa62d69b-022d-44bc-b930-6b7578f262c9"
+        "fileNames": [
+            "deepseek_mermaid_20250917_2907ee_c0ee6183.png",
+            "Модель качеств и компетенций предпринимателя_4d205cc8.html"
+        ],
+        "fileName": "deepseek_mermaid_20250917_2907ee_c0ee6183.png",
+        "id": "95767700-ec26-4cf9-a11c-27b87a4044b1"
     }
 ]

@@ -64,26 +64,35 @@ class DataManager():
             print(f"Точка с ID {point_id} не найдена.")
             return
 
-        file_name = point.get('fileName')
-        # Проверяем, используется ли файл другими точками
-        can_delete_file = all(
-            file_name != p.get('fileName')
-            for p in self.current_data
-            if p.get('id') != point_id
-        ) and file_name not in (None, 'Null')
+        # Обрабатываем множественные файлы
+        file_names = point.get('fileNames', [])
+        if not file_names:
+            # Для обратной совместимости с одиночными файлами
+            single_file = point.get('fileName')
+            if single_file and single_file not in [None, 'Null']:
+                file_names = [single_file]
+
+        # Удаляем файлы, которые не используются другими точками
+        for file_name in file_names:
+            can_delete_file = all(
+                file_name not in p.get('fileNames', []) and
+                file_name != p.get('fileName')
+                for p in self.current_data
+                if p.get('id') != point_id
+            )
+
+            if can_delete_file:
+                try:
+                    file_path = os.path.join(file_dir, file_name)
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        print(f"Файл '{file_path}' удален.")
+                except OSError as e:
+                    print(f"Ошибка при удалении файла: {e}")
 
         # Удаляем точку
         self.current_data = [p for p in self.current_data if p.get('id') != point_id]
-
-        if can_delete_file:
-            try:
-                file_path = os.path.join(file_dir, file_name)
-                os.remove(file_path)
-                print(f"Файл '{file_path}' удален.")
-            except OSError as e:
-                print(f"Ошибка при удалении файла: {e}")
-
-        self.save_data()  # Сохраняем данные в любом случае
+        self.save_data()
 
     def clear_all_points(self):
         """Удаляет все точки"""
@@ -108,7 +117,7 @@ class DataManager():
                     query in point.get('filters', '').lower() or
                     query in point.get('debit', '').lower() or
                     query in point.get('comments', '').lower() or
-                    query in point.get('fileName', '').lower()):
+                    any(query in fname.lower() for fname in point.get('fileNames', []))):
                 results.append(point)
 
         return results
@@ -215,7 +224,7 @@ class MapApp(QMainWindow):
         self.btn_del_point = QPushButton("Удалить выбранные точки")
         self.btn_del_point.clicked.connect(self.remove_selected_points)
 
-        for btn in [self.btn_add_point,self.btn_del_point]:
+        for btn in [self.btn_add_point, self.btn_del_point]:
             btn.setMinimumHeight(35)
             btn.setMinimumWidth(260)
             btn.setStyleSheet("""
@@ -359,10 +368,13 @@ class MapApp(QMainWindow):
             "debit": data.get("debit"),
             "comments": data.get("comments"),
             "color": data.get("color", "#4361ee"),
-            "fileName": data.get("fileName")
+            "fileNames": data.get("fileNames", []),  # Множественные файлы
+            "fileName": data.get("fileNames", [""])[0] if data.get("fileNames") else ""  # Для обратной совместимости
         }
 
         point_id = self.data_manager.add_point(new_point)
+
+        # Формируем JavaScript код для добавления маркера
         js_code = f"""
         addMarker(
             {lat}, 
@@ -374,11 +386,12 @@ class MapApp(QMainWindow):
             {json.dumps(new_point['debit'])},
             {json.dumps(new_point['comments'])},
             {json.dumps(new_point['color'])},
-            {json.dumps(new_point['fileName'])}
+            {json.dumps(new_point['fileName'])},
+            {json.dumps(new_point['fileNames'])}
         );
         """
         self.map_view.page().runJavaScript(js_code)
-        self.statusBar().showMessage(f"Добавлена точка: {new_point['name']}")
+        self.statusBar().showMessage(f"Добавлена точка: {new_point['name']} с {len(new_point['fileNames'])} файлами")
         self.map_view.page().runJavaScript("disableClickHandler();")
         self.points = self.data_manager.current_data
         self.dialog_window.close()
@@ -394,9 +407,12 @@ class MapApp(QMainWindow):
         # Находим точку для отображения информации
         point = next((p for p in self.points if p.get('id') == point_id), None)
         if point:
+            file_count = len(point.get('fileNames', []))
+            file_text = f" с {file_count} файлами" if file_count > 0 else ""
+
             reply = QMessageBox.question(
                 self, "Подтверждение",
-                f"Вы действительно хотите удалить точку '{point['name']}'?",
+                f"Вы действительно хотите удалить точку '{point['name']}'{file_text}?",
                 QMessageBox.Yes | QMessageBox.No
             )
             if reply == QMessageBox.Yes:
@@ -447,42 +463,48 @@ class DialogBridge(QObject):
     def sendFormData(self, json_data):
         try:
             data = json.loads(json_data)
-            print(data)
-            file_data = data.get('fileData')
+            print("Получены данные формы:", data.keys())
 
-            if file_data:
-                if file_data != 'data:':
-                    # Извлекаем base64 данные из Data URL
-                    if file_data.startswith('data:'):
-                        # Разделяем по запятой и берем вторую часть
-                        base64_data = file_data.split(',', 1)[1]
-                    else:
-                        # Если это уже чистый base64 (без префикса)
-                        base64_data = file_data
-                try:
-                    if file_data != 'data:':
-                    # Декодируем base64
+            files_data = data.get('files', [])
+            saved_file_names = []
+
+            # Обрабатываем каждый файл
+            for file_item in files_data:
+                file_data = file_item.get('fileData')
+                file_name = file_item.get('fileName')
+                file_size = file_item.get('fileSize', 0)
+
+                if file_data and file_data != 'data:':
+                    try:
+                        # Извлекаем base64 данные из Data URL
+                        if file_data.startswith('data:'):
+                            base64_data = file_data.split(',', 1)[1]
+                        else:
+                            base64_data = file_data
+
+                        # Декодируем base64
                         file_bytes = base64.b64decode(base64_data)
-                        print(f"Файл успешно декодирован, размер: {len(file_bytes)} байт")
-                    else:
-                        file_bytes = b''
-                    file_list = [
-                        f for f in os.listdir(file_dir)
-                    ]
+                        print(f"Файл '{file_name}' успешно декодирован, размер: {len(file_bytes)} байт")
 
-                    # Сохраняем файл
-                    file_name = data.get('fileName')
-                    if (file_name in file_list):
-                        pass
-                    else:
-                        with open(os.path.join(file_dir, file_name), 'wb') as f:
+                        # Генерируем уникальное имя файла для избежания конфликтов
+                        base_name, extension = os.path.splitext(file_name)
+                        unique_name = f"{base_name}_{uuid.uuid4().hex[:8]}{extension}"
+
+                        # Сохраняем файл
+                        file_path = os.path.join(file_dir, unique_name)
+                        with open(file_path, 'wb') as f:
                             f.write(file_bytes)
-                        print(f"Файл сохранен как: {os.path.join(file_dir, file_name)}")
 
-                except binascii.Error as e:
-                    print(f"Ошибка декодирования base64: {e}")
-                    # Возможно, данные повреждены или имеют неправильный формат
+                        print(f"Файл сохранен как: {file_path}")
+                        saved_file_names.append(unique_name)
 
+                    except (binascii.Error, Exception) as e:
+                        print(f"Ошибка обработки файла '{file_name}': {e}")
+                else:
+                    print(f"Пропущен файл '{file_name}': отсутствуют данные")
+
+            # Добавляем список имен файлов в данные
+            data['fileNames'] = saved_file_names
             self.formDataSubmitted.emit(data)
 
         except json.JSONDecodeError as e:

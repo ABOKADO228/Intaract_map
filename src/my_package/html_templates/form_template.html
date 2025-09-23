@@ -20,7 +20,6 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
-            color: #333;
         }
 
         .container {
@@ -42,6 +41,7 @@
         .header h1 {
             font-size: 24px;
             font-weight: 600;
+            margin: 0;
         }
 
         .form-container {
@@ -49,7 +49,7 @@
         }
 
         .form-group {
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
 
         label {
@@ -61,7 +61,7 @@
 
         input[type="text"] {
             width: 100%;
-            padding: 14px;
+            padding: 12px;
             border: 1px solid #ddd;
             border-radius: 8px;
             font-size: 16px;
@@ -76,8 +76,8 @@
 
         textarea {
             width: 100%;
-            min-height: 150px;
-            padding: 14px;
+            min-height: 120px;
+            padding: 12px;
             border: 1px solid #ddd;
             border-radius: 8px;
             font-size: 16px;
@@ -103,25 +103,118 @@
             cursor: pointer;
             transition: all 0.3s ease;
             width: 100%;
-            display: block;
-            text-align: center;
         }
 
         .btn:hover {
             background: #3a56d4;
             transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
 
         .btn:active {
             transform: translateY(0);
         }
 
-        .form-footer {
-            margin-top: 20px;
+        .btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .file-upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 20px;
             text-align: center;
+            background: #f9f9f9;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+
+        .file-upload-area:hover {
+            border-color: #4361ee;
+            background: #f0f4ff;
+        }
+
+        .file-upload-area.dragover {
+            border-color: #4361ee;
+            background: #e6f0ff;
+        }
+
+        .file-list {
+            list-style: none;
+            margin-top: 10px;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #eef2ff;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border-left: 4px solid #4361ee;
+        }
+
+        .file-info {
+            flex-grow: 1;
+        }
+
+        .file-name {
+            font-weight: 500;
+            margin-bottom: 2px;
+        }
+
+        .file-size {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .remove-file {
+            background: #ff4757;
+            color: white;
+            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 14px;
-            color: #777;
+        }
+
+        .remove-file:hover {
+            background: #ff3742;
+        }
+
+        .file-count {
+            font-weight: bold;
+            color: #4361ee;
+            margin-bottom: 10px;
+        }
+
+        .status-message {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .hidden {
+            display: none;
         }
 
         @media (max-width: 650px) {
@@ -146,50 +239,56 @@
         </div>
 
         <div class="form-container">
-            <form id="form" action="" method="get">
+            <form id="data-form">
                 <div class="form-group">
-                    <label for="name">Введите имя:</label>
-                    <input type="text" name="name" id="name" required placeholder="Название точки">
+                    <label for="name">Название точки:</label>
+                    <input type="text" id="name" required placeholder="Введите название точки">
                 </div>
 
                 <div class="form-group">
                     <label for="deep">Глубина:</label>
-                    <input type="text" name="deep" id="deep" required placeholder="Укажите глубину">
+                    <input type="text" id="deep" required placeholder="Укажите глубину">
                 </div>
 
                 <div class="form-group">
                     <label for="filters">Фильтры:</label>
-                    <input type="text" name="filters" id="filters" required placeholder="Введите фильтры">
+                    <input type="text" id="filters" required placeholder="Введите фильтры">
                 </div>
 
-                   <div class="form-group">
-                    <label for="debit">Дебит:</label>
-                    <input type="text" name="debit" id="debit" required placeholder="Введите дебит">
-                </div>
-
-                    <!-- Новое поле для загрузки DOCX файла -->
                 <div class="form-group">
-                    <label for="docxFile">Загрузите файл:</label>
-                    <input type="file" name="docxFile" id="docxFile">
-                    <div id="fileInfo" class="file-info"></div>
+                    <label for="debit">Дебит:</label>
+                    <input type="text" id="debit" required placeholder="Введите дебит">
+                </div>
+
+                <div class="form-group">
+                    <label>Прикрепленные файлы:</label>
+                    <div class="file-upload-area" id="file-upload-area">
+                        <div>📎 Перетащите файлы сюда или кликните для выбора</div>
+                        <div style="font-size: 14px; color: #666; margin-top: 5px;">
+                            Поддерживаются файлы .doc, .docx
+                        </div>
+                        <input type="file" id="file-input" multiple class="hidden">
+                    </div>
+                    <div id="file-count" class="file-count hidden"></div>
+                    <ul id="file-list" class="file-list"></ul>
                 </div>
 
                 <div class="form-group">
                     <label for="comments">Комментарии:</label>
-                    <textarea name="comments" id="comments" required placeholder="Введите ваши комментарии здесь..."></textarea>
+                    <textarea id="comments" required placeholder="Введите ваши комментарии..."></textarea>
                 </div>
 
-                <button type="button" id="submitBtn" class="btn">Создать</button>
+                <button type="button" id="submit-btn" class="btn">Создать точку</button>
             </form>
 
-            <div class="form-footer">
-                Заполните все поля формы и нажмите "Создать"
-            </div>
+            <div id="status-message" class="status-message hidden"></div>
         </div>
     </div>
 
     <script>
-        var bridge = null;
+        // Переменные
+        let bridge = null;
+        let selectedFiles = [];
 
         // Инициализация WebChannel
         document.addEventListener("DOMContentLoaded", function() {
@@ -197,77 +296,211 @@
                 bridge = channel.objects.dialogBridge;
                 console.log("WebChannel инициализирован");
             });
+
+            setupDragAndDrop();
+            setupEventListeners();
         });
 
-        document.getElementById('docxFile').addEventListener('change', function(e) {
-            const file = this.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    // Сохраняем файл в localStorage для последующей передачи
-                    localStorage.setItem('selectedFile', e.target.result);
-                    localStorage.setItem('fileName', file.name);
+        // Настройка Drag and Drop
+        function setupDragAndDrop() {
+            const fileArea = document.getElementById('file-upload-area');
+            const fileInput = document.getElementById('file-input');
 
-                    // Показываем информацию о файле
-                    document.getElementById('fileInfo').textContent =
-                        `Выбран файл: ${file.name} (${Math.round(file.size / 1024)} KB)`;
-                };
-                reader.readAsDataURL(file);
+            fileArea.addEventListener('click', function() {
+                fileInput.click();
+            });
+
+            fileArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                fileArea.classList.add('dragover');
+            });
+
+            fileArea.addEventListener('dragleave', function() {
+                fileArea.classList.remove('dragover');
+            });
+
+            fileArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                fileArea.classList.remove('dragover');
+
+                if (e.dataTransfer.files.length > 0) {
+                    handleFiles(e.dataTransfer.files);
+                }
+            });
+
+            fileInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    handleFiles(e.target.files);
+                    e.target.value = ''; // Сброс для возможности повторного выбора
+                }
+            });
+        }
+
+        // Обработка выбранных файлов
+        function handleFiles(files) {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+
+                // Проверка на дубликаты
+                const isDuplicate = selectedFiles.some(f =>
+                    f.name === file.name && f.size === file.size && f.lastModified === file.lastModified
+                );
+
+                if (!isDuplicate) {
+                    selectedFiles.push(file);
+                }
             }
-        });
 
-        document.getElementById("submitBtn").addEventListener("click", function() {
-            const name = document.getElementById('name').value;
-            const deep = document.getElementById('deep').value;
-            const filters = document.getElementById('filters').value;
-            const debit = document.getElementById('debit').value;
-            const comments = document.getElementById('comments').value;
-            const fileInput = document.getElementById('docxFile');
+            updateFileList();
+        }
 
-            if (fileInput.files.length > 0) {
-                
-                const file = fileInput.files[0];
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    sendDataToBridge({
-                        name, deep, filters, debit, comments,
-                        fileName: file.name,
-                        fileData: e.target.result
-                    });
-                };
-                reader.readAsDataURL(file);
-            } else {
-                sendDataToBridge({
-                    name, deep, filters, debit, comments,
-                    fileName: null,
-                    fileData: null
+        // Обновление списка файлов
+        function updateFileList() {
+            const fileList = document.getElementById('file-list');
+            const fileCount = document.getElementById('file-count');
+
+            fileList.innerHTML = '';
+
+            if (selectedFiles.length === 0) {
+                fileCount.classList.add('hidden');
+                return;
+            }
+
+            fileCount.textContent = `Выбрано файлов: ${selectedFiles.length}`;
+            fileCount.classList.remove('hidden');
+
+            selectedFiles.forEach((file, index) => {
+                const listItem = document.createElement('li');
+                listItem.className = 'file-item';
+
+                listItem.innerHTML = `
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${formatFileSize(file.size)}</div>
+                    </div>
+                    <button type="button" class="remove-file" data-index="${index}">×</button>
+                `;
+
+                fileList.appendChild(listItem);
+            });
+
+            // Добавляем обработчики для кнопок удаления
+            document.querySelectorAll('.remove-file').forEach(button => {
+                button.addEventListener('click', function() {
+                    const index = parseInt(this.getAttribute('data-index'));
+                    selectedFiles.splice(index, 1);
+                    updateFileList();
                 });
-            }
-        });
+            });
+        }
 
+        // Форматирование размера файла
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Настройка обработчиков событий
+        function setupEventListeners() {
+            document.getElementById('submit-btn').addEventListener('click', submitForm);
+
+            // Отправка формы по Enter
+            document.getElementById('data-form').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    submitForm();
+                }
+            });
+        }
+
+        // Отправка формы
+        function submitForm() {
+            // Получаем данные формы
+            const formData = {
+                name: document.getElementById('name').value.trim(),
+                deep: document.getElementById('deep').value.trim(),
+                filters: document.getElementById('filters').value.trim(),
+                debit: document.getElementById('debit').value.trim(),
+                comments: document.getElementById('comments').value.trim()
+            };
+
+            // Валидация
+            if (!formData.name || !formData.deep || !formData.filters || !formData.debit || !formData.comments) {
+                showStatus('Заполните все обязательные поля', 'error');
+                return;
+            }
+
+            // Блокируем кнопку отправки
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Отправка...';
+
+            if (selectedFiles.length > 0) {
+                // Чтение файлов
+                const readPromises = selectedFiles.map(file => {
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            resolve({
+                                fileName: file.name,
+                                fileSize: file.size,
+                                fileData: e.target.result
+                            });
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                });
+
+                Promise.all(readPromises).then(filesData => {
+                    formData.files = filesData;
+                    sendDataToBridge(formData);
+                }).catch(error => {
+                    console.error('Ошибка чтения файлов:', error);
+                    showStatus('Ошибка при чтении файлов', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Создать точку';
+                });
+            } else {
+                formData.files = [];
+                sendDataToBridge(formData);
+            }
+        }
+
+        // Отправка данных через WebChannel
         function sendDataToBridge(formData) {
             if (bridge) {
                 bridge.sendFormData(JSON.stringify(formData));
-                const btn = document.getElementById('submitBtn');
-                btn.textContent = 'Данные отправлены!';
-                btn.style.background = '#4caf50';
+                showStatus('Данные успешно отправлены!', 'success');
+
+                // Очищаем форму
                 setTimeout(() => {
-                    btn.textContent = 'Создать';
-                    btn.style.background = '';
-                }, 1500);
+                    document.getElementById('data-form').reset();
+                    selectedFiles = [];
+                    updateFileList();
+
+                    const submitBtn = document.getElementById('submit-btn');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Создать точку';
+
+                    document.getElementById('status-message').classList.add('hidden');
+                }, 2000);
             } else {
-                console.error("WebChannel не инициализирован");
-
-                // Визуальная обратная связь об ошибке
-                const btn = document.getElementById('submitBtn');
-                btn.textContent = 'Ошибка подключения!';
-                btn.style.background = '#f44336';
-
-                setTimeout(() => {
-                    btn.textContent = 'Создать';
-                    btn.style.background = '';
-                }, 1500);
+                showStatus('Ошибка: WebChannel не инициализирован', 'error');
+                const submitBtn = document.getElementById('submit-btn');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Создать точку';
             }
+        }
+
+        // Показать статус
+        function showStatus(message, type) {
+            const statusElement = document.getElementById('status-message');
+            statusElement.textContent = message;
+            statusElement.className = `status-message status-${type}`;
+            statusElement.classList.remove('hidden');
         }
     </script>
 </body>

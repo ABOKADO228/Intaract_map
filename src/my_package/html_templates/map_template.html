@@ -421,6 +421,44 @@
             font-size: 13px;
             color: #666;
         }
+
+        /* Новые стили для множественных файлов */
+        .files-list {
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            padding: 8px;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px;
+            margin-bottom: 5px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border-left: 3px solid #4361ee;
+        }
+        .file-item:last-child {
+            margin-bottom: 0;
+        }
+        .file-name {
+            flex-grow: 1;
+            font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .file-count {
+            background-color: #4361ee;
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
@@ -543,7 +581,8 @@
                         point.debit,
                         point.comments,
                         point.color,
-                        point.fileName  // Добавляем fileName
+                        point.fileName,  // Для обратной совместимости
+                        point.fileNames || []  // Массив файлов
                     );
                 });
                 initialMarkerData = [];
@@ -554,7 +593,7 @@
         }
 
         // Добавление маркера (универсальная функция)
-        function addMarker(lat, lng, name, id, deep, filters, debit, comments, color, fileName) {
+        function addMarker(lat, lng, name, id, deep, filters, debit, comments, color, fileName, fileNames) {
             if (!color) color = '#4361ee';
 
             // Создаем кастомную иконку с выбранным цветом
@@ -568,7 +607,13 @@
             var marker = L.marker([lat, lng], {icon: markerIcon}).addTo(markers);
 
             if (name) {
-                marker.bindPopup(name);
+                // Добавляем количество файлов в popup
+                var fileCount = fileNames ? fileNames.length : (fileName ? 1 : 0);
+                var popupContent = `<strong>${name}</strong>`;
+                if (fileCount > 0) {
+                    popupContent += `<br><small>Файлов: ${fileCount}</small>`;
+                }
+                marker.bindPopup(popupContent);
             }
 
             // Сохраняем данные маркера
@@ -583,7 +628,8 @@
                 debit: debit,
                 comments: comments,
                 color: color,
-                fileName: fileName || null,  // Добавляем fileName
+                fileName: fileName || null,  // Для обратной совместимости
+                fileNames: fileNames || [],  // Массив файлов
                 visible: true
             };
 
@@ -607,6 +653,7 @@
                 }
            });
         }
+
         // Обновление навигационного дерева
         function updateNavTree() {
             const navTree = document.getElementById('nav-tree');
@@ -636,11 +683,17 @@
                     // Создаем заголовок группы
                     const groupHeader = document.createElement('div');
                     groupHeader.className = 'group-header';
+
+                    // Добавляем счетчик файлов в заголовок группы
+                    const totalFiles = groupMarkers.reduce((sum, marker) => sum + (marker.fileNames ? marker.fileNames.length : 0), 0);
+
                     groupHeader.innerHTML = `
                         <div class="group-title">
                             <i class="fas fa-circle" style="color: ${color}"></i>
                             <span>Цвет: ${color}</span>
-                            <span style="margin-left: 8px; color: #777; font-size: 12px;">(${groupMarkers.length})</span>
+                            <span style="margin-left: 8px; color: #777; font-size: 12px;">
+                                (${groupMarkers.length} точек, ${totalFiles} файлов)
+                            </span>
                         </div>
                         <div class="group-toggle">
                             <button class="icon-btn toggle-group" data-color="${color}">
@@ -654,9 +707,8 @@
 
                     // Создаем контейнер для маркеров группы
                     const groupContent = document.createElement('div');
-                    groupContent.className = 'group-content'; // По умолчанию свернуто
+                    groupContent.className = 'group-content';
                     groupContent.id = `group-${color.replace('#', '')}`;
-
 
                     // Добавляем маркеры в группу
                     groupMarkers.forEach(function(marker, index) {
@@ -675,8 +727,14 @@
 
                         const markerInfo = document.createElement('div');
                         markerInfo.classList.add('marker-info');
-                        markerInfo.textContent = `${marker.name}`;
-                        markerInfo.title = marker.name;
+
+                        // Добавляем счетчик файлов к названию точки
+                        const fileCount = marker.fileNames ? marker.fileNames.length : 0;
+                        markerInfo.innerHTML = `
+                            <span>${marker.name}</span>
+                            ${fileCount > 0 ? `<span class="file-count">${fileCount}</span>` : ''}
+                        `;
+                        markerInfo.title = marker.name + (fileCount > 0 ? ` (${fileCount} файлов)` : '');
 
                         // Используем замыкание для правильной привязки маркера
                         markerInfo.onclick = (function(marker) {
@@ -803,8 +861,14 @@
 
                         const pointName = document.createElement('div');
                         pointName.className = 'selected-point-name';
-                        pointName.textContent = marker.name;
-                        pointName.title = marker.name;
+
+                        // Добавляем счетчик файлов к названию точки
+                        const fileCount = marker.fileNames ? marker.fileNames.length : 0;
+                        pointName.innerHTML = `
+                            <span>${marker.name}</span>
+                            ${fileCount > 0 ? `<span class="file-count">${fileCount}</span>` : ''}
+                        `;
+                        pointName.title = marker.name + (fileCount > 0 ? ` (${fileCount} файлов)` : '');
 
                         const removeBtn = document.createElement('button');
                         removeBtn.className = 'remove-selected-btn';
@@ -835,21 +899,27 @@
         function showPointInfo(marker) {
             const pointInfo = document.getElementById('point-info');
 
-            // Создаем HTML для информации о файле
+            // Создаем HTML для информации о файлах
             let fileHtml = '';
-            if (marker.fileName) {
+            const files = marker.fileNames || [];
+
+            if (files.length > 0) {
                 fileHtml = `
-                    <p>
-                        <strong>Прикрепленный файл:</strong>
-                        <span class="file-link" onclick="openFile('${marker.fileName}')">
-                            ${marker.fileName}
-                        </span>
-                        <br>
-                        <span class="file-info">Нажмите на имя файла, чтобы открыть в Word</span>
-                    </p>
+                    <p><strong>Прикрепленные файлы (${files.length}):</strong></p>
+                    <div class="files-list">
+                        ${files.map(fileName => `
+                            <div class="file-item">
+                                <span class="file-name" title="${fileName}">${fileName}</span>
+                                <span class="file-link" onclick="openFile('${fileName}')">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <p class="file-info">Нажмите на значок файла, чтобы открыть в Word</p>
                 `;
             } else {
-                fileHtml = '<p><strong>Прикрепленный файл:</strong> отсутствует</p>';
+                fileHtml = '<p><strong>Прикрепленные файлы:</strong> отсутствуют</p>';
             }
 
             pointInfo.innerHTML = `
@@ -1030,7 +1100,8 @@
                 debit: marker.debit,
                 comments: marker.comments,
                 color: marker.color,
-                fileName: marker.fileName  // Добавляем fileName
+                fileName: marker.fileName,  // Для обратной совместимости
+                fileNames: marker.fileNames  // Массив файлов
             }));
 
             bridge.changeColor(JSON.stringify(dataToSend));
@@ -1087,7 +1158,8 @@
                 (marker.filters && marker.filters.toLowerCase().includes(searchText)) ||
                 (marker.debit && marker.debit.toLowerCase().includes(searchText)) ||
                 (marker.comments && marker.comments.toLowerCase().includes(searchText)) ||
-                (marker.fileName && marker.fileName.toLowerCase().includes(searchText))
+                (marker.fileName && marker.fileName.toLowerCase().includes(searchText)) ||
+                (marker.fileNames && marker.fileNames.some(fileName => fileName.toLowerCase().includes(searchText)))
             );
 
             // Отображаем результаты
@@ -1096,9 +1168,13 @@
             } else {
                 resultsContainer.innerHTML = '';
                 results.forEach(marker => {
+                    const fileCount = marker.fileNames ? marker.fileNames.length : 0;
                     const resultItem = document.createElement('div');
                     resultItem.className = 'search-result-item';
-                    resultItem.textContent = marker.name;
+                    resultItem.innerHTML = `
+                        <div>${marker.name}</div>
+                        <small style="color: #666;">Файлов: ${fileCount}</small>
+                    `;
 
                     // Добавляем обработчик клика для перехода к точке
                     resultItem.addEventListener('click', function() {
