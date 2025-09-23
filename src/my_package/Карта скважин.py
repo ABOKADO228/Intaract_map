@@ -170,7 +170,7 @@ class MapApp(QMainWindow):
 
     def setup_ui(self):
         """Настраивает пользовательский интерфейс"""
-        self.setWindowTitle("Картографическое приложение")
+        self.setWindowTitle("Карта скважин")
         self.resize(1200, 800)
         self.center_window()
 
@@ -217,7 +217,7 @@ class MapApp(QMainWindow):
 
         for btn in [self.btn_add_point,self.btn_del_point]:
             btn.setMinimumHeight(35)
-            btn.setMinimumWidth(180)
+            btn.setMinimumWidth(260)
             btn.setStyleSheet("""
     QPushButton {
         padding: 8px 12px;
@@ -245,6 +245,7 @@ class MapApp(QMainWindow):
     def remove_selected_points(self):
         self.map_view.page().runJavaScript(f"removeSelectedPoints();")
         print("а")
+
     def setup_web_channel(self):
         """Настраивает WebChannel для связи с JavaScript"""
         self.bridge = Bridge(self)
@@ -446,27 +447,31 @@ class DialogBridge(QObject):
     def sendFormData(self, json_data):
         try:
             data = json.loads(json_data)
+            print(data)
             file_data = data.get('fileData')
 
             if file_data:
-                # Извлекаем base64 данные из Data URL
-                if file_data.startswith('data:'):
-                    # Разделяем по запятой и берем вторую часть
-                    base64_data = file_data.split(',', 1)[1]
-                else:
-                    # Если это уже чистый base64 (без префикса)
-                    base64_data = file_data
-
+                if file_data != 'data:':
+                    # Извлекаем base64 данные из Data URL
+                    if file_data.startswith('data:'):
+                        # Разделяем по запятой и берем вторую часть
+                        base64_data = file_data.split(',', 1)[1]
+                    else:
+                        # Если это уже чистый base64 (без префикса)
+                        base64_data = file_data
                 try:
+                    if file_data != 'data:':
                     # Декодируем base64
-                    file_bytes = base64.b64decode(base64_data)
-                    print(f"Файл успешно декодирован, размер: {len(file_bytes)} байт")
+                        file_bytes = base64.b64decode(base64_data)
+                        print(f"Файл успешно декодирован, размер: {len(file_bytes)} байт")
+                    else:
+                        file_bytes = b''
                     file_list = [
                         f for f in os.listdir(file_dir)
                     ]
 
                     # Сохраняем файл
-                    file_name = data.get('fileName', 'document.docx')
+                    file_name = data.get('fileName')
                     if (file_name in file_list):
                         pass
                     else:

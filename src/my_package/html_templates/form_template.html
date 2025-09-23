@@ -149,7 +149,7 @@
             <form id="form" action="" method="get">
                 <div class="form-group">
                     <label for="name">Введите имя:</label>
-                    <input type="text" name="name" id="name" required placeholder="Ваше имя">
+                    <input type="text" name="name" id="name" required placeholder="Название точки">
                 </div>
 
                 <div class="form-group">
@@ -169,8 +169,8 @@
 
                     <!-- Новое поле для загрузки DOCX файла -->
                 <div class="form-group">
-                    <label for="docxFile">Загрузите DOCX файл:</label>
-                    <input type="file" name="docxFile" id="docxFile" accept=".docx">
+                    <label for="docxFile">Загрузите файл:</label>
+                    <input type="file" name="docxFile" id="docxFile">
                     <div id="fileInfo" class="file-info"></div>
                 </div>
 
@@ -225,6 +225,7 @@
             const fileInput = document.getElementById('docxFile');
 
             if (fileInput.files.length > 0) {
+                
                 const file = fileInput.files[0];
                 const reader = new FileReader();
                 reader.onload = function(e) {
