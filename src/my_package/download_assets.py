@@ -13,11 +13,14 @@ def download_offline_assets():
 
     # ПРАВИЛЬНЫЕ URL для leaflet.offline
     libraries = {
-    "https://unpkg.com/leaflet.offline@1.4.0/dist/leaflet.offline.min.js",
-    "https://cdn.jsdelivr.net/npm/leaflet.offline@1.4.0/leaflet.offline.min.js",
-    "https://raw.githubusercontent.com/robertomlsoares/leaflet.offline/master/dist/leaflet.offline.min.js",
+        "leaflet.offline.min.js": "https://raw.githubusercontent.com/robertomlsoares/leaflet.offline/master/dist/leaflet.offline.min.js",
     }
-
+    # Добавьте этот список альтернативных URL
+    alternative_urls = [
+        "https://unpkg.com/leaflet.offline@1.4.0/dist/leaflet.offline.min.js",
+        "https://cdn.jsdelivr.net/npm/leaflet.offline@1.4.0/leaflet.offline.min.js",
+        ""
+    ]
     for filename, url in libraries.items():
         filepath = assets_dir / filename
         print(f"Проверяем: {filename}")

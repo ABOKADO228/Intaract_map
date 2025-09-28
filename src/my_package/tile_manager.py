@@ -5,7 +5,7 @@ from pathlib import Path
 import hashlib
 import json
 import math
-from urllib.parse import urlparse
+import time
 
 
 class TileManager:
@@ -121,7 +121,7 @@ class TileManager:
         """Проверяет, есть ли тайл в кэше"""
         return self.get_tile(url) is not None
 
-    def download_area(self, bounds, zoom_levels, name):
+    def download_area(self, bounds, zoom_levels, name, progress_callback=None, thread=None):
         """Скачивает тайлы для указанной области и уровней масштабирования"""
         min_lat, min_lon, max_lat, max_lon = bounds
         tiles_downloaded = 0
@@ -138,6 +138,7 @@ class TileManager:
 
         print(f"Всего тайлов для загрузки: {total_tiles}")
 
+        current_tile = 0
         for zoom in zoom_levels:
             # Преобразуем координаты в тайлы
             min_tile_x = self.lon_to_tile_x(min_lon, zoom)
@@ -149,27 +150,58 @@ class TileManager:
 
             for x in range(min_tile_x, max_tile_x + 1):
                 for y in range(min_tile_y, max_tile_y + 1):
-                    # Используем CartoDB Positron стиль
+                    # Проверяем, не была ли отмена
+                    if thread and not thread._is_running:
+                        print("Загрузка прервана пользователем")
+                        return tiles_downloaded
+
+                    current_tile += 1
+
+                    # Используем CartoDB Voyager (цветной стиль с русскими подписями)
                     url = f"https://cartodb-basemaps-a.global.ssl.fastly.net/rastertiles/voyager/{zoom}/{x}/{y}.png"
 
                     if not self.is_tile_cached(url):
                         if self.download_tile(url):
                             tiles_downloaded += 1
-                            if tiles_downloaded % 50 == 0:
+                            if tiles_downloaded % 10 == 0:
                                 print(f"Загружено {tiles_downloaded}/{total_tiles} тайлов...")
 
-        # Сохраняем информацию о тайлсете
-        conn = sqlite3.connect(self.tiles_db)
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO tilesets (name, bounds, min_zoom, max_zoom) VALUES (?, ?, ?, ?)",
-            (name, json.dumps(bounds), min(zoom_levels), max(zoom_levels))
-        )
-        conn.commit()
-        conn.close()
+                    # Отправляем прогресс
+                    if progress_callback:
+                        progress_callback.emit(current_tile, total_tiles)
 
-        self.load_offline_tilesets()
+                    # Небольшая задержка чтобы не перегружать сервер
+                    time.sleep(0.01)
+
+        # Сохраняем информацию о тайлсете
+        if tiles_downloaded > 0:
+            conn = sqlite3.connect(self.tiles_db)
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR REPLACE INTO tilesets (name, bounds, min_zoom, max_zoom) VALUES (?, ?, ?, ?)",
+                (name, json.dumps(bounds), min(zoom_levels), max(zoom_levels))
+            )
+            conn.commit()
+            conn.close()
+
+            self.load_offline_tilesets()
+
         return tiles_downloaded
+
+    def estimate_download_size(self, bounds, zoom_levels):
+        """Оценивает размер загрузки в МБ"""
+        total_tiles = 0
+        for zoom in zoom_levels:
+            min_tile_x = self.lon_to_tile_x(bounds[1], zoom)
+            max_tile_x = self.lon_to_tile_x(bounds[3], zoom)
+            min_tile_y = self.lat_to_tile_y(bounds[2], zoom)
+            max_tile_y = self.lat_to_tile_y(bounds[0], zoom)
+
+            total_tiles += (max_tile_x - min_tile_x + 1) * (max_tile_y - min_tile_y + 1)
+
+        # Средний размер тайла ~15KB
+        estimated_size_mb = (total_tiles * 15) / 1024
+        return round(estimated_size_mb, 1)
 
     @staticmethod
     def lon_to_tile_x(lon, zoom):
@@ -218,7 +250,10 @@ class TileManager:
 
         # Удаляем файлы тайлов
         for file_path in self.tiles_dir.glob("*.png"):
-            file_path.unlink()
+            try:
+                file_path.unlink()
+            except Exception as e:
+                print(f"Ошибка удаления файла {file_path}: {e}")
 
         self.offline_tilesets = {}
         return True

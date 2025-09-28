@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Интерактивная карта - Офлайн режим</title>
+    <title>Интерактивная карта  </title>
     <meta charset="utf-8">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -16,6 +16,7 @@
         }
         #map {
             width: 75%;
+            height: 100%;
         }
         #side-panel {
             width: 25%;
@@ -465,28 +466,73 @@
             position: absolute;
             top: 10px;
             right: 10px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 12px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
             z-index: 1000;
-            border: 1px solid #ddd;
+            border: 2px solid #ddd;
+            font-weight: bold;
         }
         .offline-status.online {
             color: #2ed573;
             border-color: #2ed573;
+            background: rgba(46, 213, 115, 0.1);
         }
         .offline-status.offline {
             color: #ff4757;
             border-color: #ff4757;
+            background: rgba(255, 71, 87, 0.1);
+        }
+
+        /* Стили для управления режимами */
+        .mode-controls {
+            position: absolute;
+            top: 60px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px;
+            border-radius: 6px;
+            z-index: 1000;
+            border: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .mode-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .mode-btn.offline {
+            background: #4361ee;
+            color: white;
+        }
+        .mode-btn.online {
+            background: #2ed573;
+            color: white;
+        }
+        .mode-btn:hover {
+            opacity: 0.9;
         }
     </style>
 </head>
 <body>
     <div id="web-content">
         <div id="map">
-            <div id="offline-status" class="offline-status online">
-                <i class="fas fa-wifi"></i> Онлайн
+            <div id="offline-status" class="offline-status offline">
+                <i class="fas fa-wifi-slash"></i> Офлайн режим
+            </div>
+            <div class="mode-controls">
+                <button class="mode-btn offline" onclick="switchToOfflineLayer()">
+                    <i class="fas fa-wifi-slash"></i> Офлайн
+                </button>
+                <button class="mode-btn online" onclick="switchToOnlineLayer()">
+                    <i class="fas fa-wifi"></i> Онлайн
+                </button>
             </div>
         </div>
         <div id="side-panel">
@@ -562,6 +608,7 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="assets/leaflet.offline.min.js"></script>
     <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script>
         // Инициализация карты с офлайн-поддержкой
@@ -577,6 +624,7 @@
         var colorChangeQueue = [];
         var colorChangeTimer = null;
         var isOnline = true;
+        var currentLayer = null;
 
         // Инициализация WebChannel
         document.addEventListener("DOMContentLoaded", function() {
@@ -593,95 +641,99 @@
         });
 
         function initOfflineMap() {
-            // Создаем CartoDB Positron слой (светлая тема)
-            var cartoDBLayer = L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/rastertiles/voyager/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution">CARTO</a>',
-    minZoom: 0,
-    maxZoom: 18,
-    subdomains: 'abcd'
-});
-
-            // Переопределяем метод создания тайла для добавления офлайн-поддержки
-            var originalCreateTile = cartoDBLayer.createTile;
-
-            cartoDBLayer.createTile = function(coords, done) {
-                var tile = originalCreateTile.call(this, coords, done);
-                var url = this.getTileUrl(coords);
-
-                // Пытаемся получить тайл из кэша
-                if (bridge && typeof bridge.getTile === 'function') {
-                    bridge.getTile(url).then(function(dataUrl) {
-                        if (dataUrl && dataUrl.startsWith('data:')) {
-                            tile.onload = function() {
-                                var ctx = tile.getContext('2d');
-                                var img = new Image();
-                                img.onload = function() {
-                                    ctx.drawImage(img, 0, 0);
-                                    done(null, tile);
-                                };
-                                img.src = dataUrl;
-                            };
-                        } else {
-                            // Если тайла нет в кэше, загружаем обычным способом
-                            tile.crossOrigin = "Anonymous";
-                            tile.onload = function() {
-                                done(null, tile);
-                            };
-                            tile.onerror = function() {
-                                // Если загрузка не удалась, показываем пустой тайл
-                                var ctx = tile.getContext('2d');
-                                ctx.fillStyle = '#f8f9fa';
-                                ctx.fillRect(0, 0, 256, 256);
-                                ctx.fillStyle = '#6c757d';
-                                ctx.font = '12px Arial';
-                                ctx.textAlign = 'center';
-                                ctx.fillText('Офлайн', 128, 128);
-                                done(new Error('Tile load error'), tile);
-                            };
-                        }
-                    });
-                } else {
-                    tile.onload = function() {
-                        done(null, tile);
-                    };
-                    tile.onerror = function() {
-                        var ctx = tile.getContext('2d');
-                        ctx.fillStyle = '#f8f9fa';
-                        ctx.fillRect(0, 0, 256, 256);
-                        ctx.fillStyle = '#6c757d';
-                        ctx.font = '12px Arial';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('Офлайн', 128, 128);
-                        done(new Error('Tile load error'), tile);
-                    };
-                }
-
-                return tile;
-            };
-
-            // Добавляем слой на карту
-            cartoDBLayer.addTo(map);
+            // По умолчанию используем офлайн-слой
+            switchToOfflineLayer();
 
             // Мониторинг онлайн-статуса
             updateOnlineStatus();
-            window.addEventListener('online', updateOnlineStatus);
-            window.addEventListener('offline', updateOnlineStatus);
+            window.addEventListener('online', function() {
+                updateOnlineStatus();
+            });
+            window.addEventListener('offline', function() {
+                updateOnlineStatus();
+                // При потере интернета автоматически переключаемся на офлайн-режим
+                if (currentLayer && currentLayer.options && currentLayer.options.subdomains) {
+                    switchToOfflineLayer();
+                }
+            });
+        }
+
+        function switchToOfflineLayer() {
+            // Удаляем текущий слой
+            if (currentLayer) {
+                map.removeLayer(currentLayer);
+            }
+
+            // Создаем и добавляем офлайн-слой
+            currentLayer = L.tileLayer.offline({
+                attribution: 'Офлайн карта | Тайлы из кэша',
+                minZoom: 0,
+                maxZoom: 18
+            });
+
+            currentLayer.addTo(map);
+
+            // Обновляем статус
+            updateOnlineStatus();
+
+            // Уведомляем Python о переключении
+            if (bridge) {
+                bridge.switchToOfflineMode();
+            }
+
+            console.log("Переключен в офлайн-режим");
+        }
+
+        function switchToOnlineLayer() {
+            // Проверяем доступность интернета
+            if (!navigator.onLine) {
+                alert("Нет подключения к интернету. Невозможно переключиться в онлайн-режим.");
+                return;
+            }
+
+            // Удаляем текущий слой
+            if (currentLayer) {
+                map.removeLayer(currentLayer);
+            }
+
+            // Создаем и добавляем онлайн-слой
+            currentLayer = L.tileLayer.online('https://cartodb-basemaps-a.global.ssl.fastly.net/rastertiles/voyager/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution">CARTO</a>',
+                minZoom: 0,
+                maxZoom: 18,
+                subdomains: 'abcd'
+            });
+
+            currentLayer.addTo(map);
+
+            // Обновляем статус
+            updateOnlineStatus();
+
+            // Уведомляем Python о переключении
+            if (bridge) {
+                bridge.switchToOnlineMode();
+            }
+
+            console.log("Переключен в онлайн-режим");
         }
 
         function updateOnlineStatus() {
             isOnline = navigator.onLine;
             var statusElement = document.getElementById('offline-status');
 
-            if (isOnline) {
-                statusElement.innerHTML = '<i class="fas fa-wifi"></i> Онлайн';
+            // Определяем текущий режим по наличию subdomains в опциях слоя
+            var isCurrentlyOnline = currentLayer && currentLayer.options && currentLayer.options.subdomains;
+
+            if (isCurrentlyOnline) {
+                statusElement.innerHTML = '<i class="fas fa-wifi"></i> Онлайн режим';
                 statusElement.className = 'offline-status online';
             } else {
-                statusElement.innerHTML = '<i class="fas fa-wifi-slash"></i> Офлайн';
+                statusElement.innerHTML = '<i class="fas fa-wifi-slash"></i> Офлайн режим';
                 statusElement.className = 'offline-status offline';
             }
         }
 
-        // Остальной JavaScript код остается без изменений
+        // ВАШ ОРИГИНАЛЬНЫЙ JavaScript КОД ДЛЯ РАБОТЫ С ТОЧКАМИ
         // Инициализация точек
         function initPoints() {
             if (typeof initialMarkerData !== 'undefined' && initialMarkerData.length > 0) {
@@ -696,8 +748,8 @@
                         point.debit,
                         point.comments,
                         point.color,
-                        point.fileName,  // Для обратной совместимости
-                        point.fileNames || []  // Массив файлов
+                        point.fileName,
+                        point.fileNames || []
                     );
                 });
                 initialMarkerData = [];
@@ -707,7 +759,7 @@
             }
         }
 
-        // Добавление маркера (универсальная функция)
+        // Добавление маркера (ваша оригинальная функция)
         function addMarker(lat, lng, name, id, deep, filters, debit, comments, color, fileName, fileNames) {
             if (!color) color = '#4361ee';
 
@@ -743,8 +795,8 @@
                 debit: debit,
                 comments: comments,
                 color: color,
-                fileName: fileName || null,  // Для обратной совместимости
-                fileNames: fileNames || [],  // Массив файлов
+                fileName: fileName || null,
+                fileNames: fileNames || [],
                 visible: true
             };
 
@@ -756,19 +808,11 @@
                 toggleMarkerSelection(markerInfo.id);
             });
 
-            marker.on('mouseover', () => {
-                marker.setPopupContent('Точка: ' + markerInfo.name + '\nГлубина: ' + markerInfo.deep);
-                marker.openPopup();
-            });
-
-            marker.on('mouseout', () => {
-                marker.setPopupContent(popupContent);
-            });
-
             updateNavTree();
             return marker;
         }
 
+        // ОСТАЛЬНЫЕ ВАШИ ОРИГИНАЛЬНЫЕ ФУНКЦИИ
         function removeSelectedPoints() {
            selectedMarkerIds.forEach(markerId => {
                 const marker = markerData.find(m => m.id === markerId);
@@ -778,8 +822,8 @@
            });
         }
 
-        // Обновление навигационного дерева
         function updateNavTree() {
+            // Ваша оригинальная реализация
             const navTree = document.getElementById('nav-tree');
 
             // Очищаем дерево
@@ -963,8 +1007,8 @@
             }
         }
 
-        // Обновление списка выбранных точек
         function updateSelectedPointsList() {
+            // Ваша оригинальная реализация
             const selectedList = document.getElementById('selected-points-list');
 
             // Очищаем список
@@ -1019,8 +1063,8 @@
             }
         }
 
-        // Показать информацию о точке
         function showPointInfo(marker) {
+            // Ваша оригинальная реализация
             const pointInfo = document.getElementById('point-info');
 
             // Создаем HTML для информации о файлах
@@ -1058,7 +1102,6 @@
             `;
         }
 
-        // Функция для открытия файла
         function openFile(fileName) {
             if (bridge && typeof bridge.openFileInWord === 'function') {
                 bridge.openFileInWord(fileName);
@@ -1068,7 +1111,6 @@
             }
         }
 
-        // Выбор/снятие выбора маркера
         function toggleMarkerSelection(markerId) {
             const index = selectedMarkerIds.indexOf(markerId);
             if (index === -1) {
@@ -1080,21 +1122,18 @@
             updateSelectedPointsList();
         }
 
-        // Выбрать все точки
         function selectAllMarkers() {
             selectedMarkerIds = markerData.map(marker => marker.id);
             updateNavTree();
             updateSelectedPointsList();
         }
 
-        // Снять выделение со всех точек
         function deselectAllMarkers() {
             selectedMarkerIds = [];
             updateNavTree();
             updateSelectedPointsList();
         }
 
-        // Установка видимости маркера
         function setMarkerVisibility(markerId, visible) {
             const markerInfo = markerData.find(m => m.id === markerId);
             if (markerInfo) {
@@ -1107,7 +1146,6 @@
             }
         }
 
-        // Переключение видимости маркера
         function toggleMarkerVisibility(markerId) {
             const markerInfo = markerData.find(m => m.id === markerId);
             if (markerInfo) {
@@ -1117,7 +1155,6 @@
             }
         }
 
-        // Скрыть все маркеры
         function hideAllMarkers() {
             markerData.forEach(marker => {
                 marker.visible = false;
@@ -1126,7 +1163,6 @@
             updateNavTree();
         }
 
-        // Показать все маркеры
         function showAllMarkers() {
             markerData.forEach(marker => {
                 marker.visible = true;
@@ -1135,7 +1171,6 @@
             updateNavTree();
         }
 
-        // Скрыть выбранные маркеры
         function hideSelectedMarkers() {
             selectedMarkerIds.forEach(id => {
                 const markerInfo = markerData.find(m => m.id === id);
@@ -1147,7 +1182,6 @@
             updateNavTree();
         }
 
-        // Показать выбранные маркеры
         function showSelectedMarkers() {
             selectedMarkerIds.forEach(id => {
                 const markerInfo = markerData.find(m => m.id === id);
@@ -1159,7 +1193,6 @@
             updateNavTree();
         }
 
-        // Изменение цвета маркеров с оптимизацией
         function changeMarkerColor(color) {
             if (selectedMarkerIds.length === 0) {
                 alert('Сначала выберите маркеры, нажав на них в списке или на карте');
@@ -1194,7 +1227,6 @@
             updateNavTree();
         }
 
-        // Отправка обновлений цветов с дебаунсингом
         function sendColorUpdates() {
             if (colorChangeQueue.length === 0 || !bridge) return;
 
@@ -1232,7 +1264,6 @@
             colorChangeQueue = [];
         }
 
-        // Удаление маркера
         function removeMarker(id) {
             const index = markerData.findIndex(m => m.id === id);
             if (index !== -1) {
@@ -1251,7 +1282,6 @@
             }
         }
 
-        // Включение обработчика кликов
         function enableClickHandler() {
             map.on('click', function(e) {
                 if (bridge) {
@@ -1260,12 +1290,10 @@
             });
         }
 
-        // Отключение обработчика кликов
         function disableClickHandler() {
             map.off('click');
         }
 
-        // Функция поиска точек
         function searchPoints() {
             hideAllMarkers()
             const searchText = document.getElementById('search-input').value.toLowerCase().trim();

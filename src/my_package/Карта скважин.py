@@ -3,7 +3,6 @@ import os
 import base64
 import binascii
 import json
-from itertools import count
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSlot, QUrl, Qt, pyqtSignal, QThread
 from PyQt5.QtWebChannel import QWebChannel
@@ -26,18 +25,18 @@ os.makedirs(data_dir, exist_ok=True)
 os.makedirs(file_dir, exist_ok=True)
 os.makedirs(resources_dir, exist_ok=True)
 
-
-# Загружаем офлайн-ассеты ПЕРЕД созданием приложения
+# Создание офлайн-ассетов
 try:
-    from download_assets import download_offline_assets
-    print("Загрузка офлайн-ассетов...")
-    download_offline_assets()
-    print("Офлайн-ассеты загружены успешно")
+    from create_offline_assets import create_offline_assets
+    print("Создание офлайн-ассетов...")
+    create_offline_assets()
+    print("Офлайн-ассеты созданы успешно")
 except Exception as e:
-    print(f"Ошибка загрузки ассетов: {e}")
+    print(f"Ошибка создания ассетов: {e}")
 
 class DownloadThread(QThread):
     finished = pyqtSignal(int)
+    progress = pyqtSignal(int, int)  # текущий, всего
 
     def __init__(self, tile_manager, bounds, zoom_levels, name):
         super().__init__()
@@ -45,11 +44,15 @@ class DownloadThread(QThread):
         self.bounds = bounds
         self.zoom_levels = zoom_levels
         self.name = name
+        self._is_running = True
+
+    def stop(self):
+        self._is_running = False
 
     def run(self):
         try:
             tiles_downloaded = self.tile_manager.download_area(
-                self.bounds, self.zoom_levels, self.name
+                self.bounds, self.zoom_levels, self.name, self.progress, self
             )
             self.finished.emit(tiles_downloaded)
         except Exception as e:
@@ -204,6 +207,22 @@ class Bridge(QObject):
         """Возвращает тайл в формате Data URL"""
         return self.parent.tile_manager.get_tile_data_url(url) or ""
 
+    @pyqtSlot(result=str)
+    def getOfflineStats(self):
+        """Возвращает статистику офлайн-карт в формате JSON"""
+        stats = self.parent.tile_manager.get_stats()
+        return json.dumps(stats)
+
+    @pyqtSlot()
+    def switchToOfflineMode(self):
+        """Принудительно переключает в офлайн-режим"""
+        self.parent.force_offline_mode()
+
+    @pyqtSlot()
+    def switchToOnlineMode(self):
+        """Переключает в онлайн-режим"""
+        self.parent.force_online_mode()
+
 
 class MapApp(QMainWindow):
     def __init__(self, data_manager):
@@ -213,6 +232,7 @@ class MapApp(QMainWindow):
         self.point_mode = False
         self.tile_manager = TileManager(data_dir)
         self.download_thread = None
+        self.current_mode = "offline"  # offline, online
 
         self.setup_ui()
         self.setup_web_channel()
@@ -238,7 +258,7 @@ class MapApp(QMainWindow):
         layout.addWidget(self.map_view, 1)
 
         # Статус бар
-        self.statusBar().showMessage("Готово")
+        self.statusBar().showMessage("Готово (Офлайн режим)")
 
         # Загружаем карту
         self.load_map_html()
@@ -275,6 +295,7 @@ class MapApp(QMainWindow):
         self.btn_clear_cache = QPushButton("Очистить кэш")
         self.btn_clear_cache.clicked.connect(self.clear_offline_cache)
 
+
         buttons = [
             self.btn_add_point,
             self.btn_del_point,
@@ -285,7 +306,7 @@ class MapApp(QMainWindow):
 
         for btn in buttons:
             btn.setMinimumHeight(35)
-            btn.setMinimumWidth(180)
+            btn.setMinimumWidth(160)
             btn.setStyleSheet("""
 QPushButton {
     padding: 8px 12px;
@@ -529,7 +550,7 @@ QPushButton:pressed {
         """Диалог для скачивания офлайн-карты"""
         dialog = QDialog(self)
         dialog.setWindowTitle("Скачать офлайн-карту")
-        dialog.setFixedSize(400, 300)
+        dialog.setFixedSize(400, 350)
         layout = QVBoxLayout(dialog)
 
         layout.addWidget(QLabel("Область карты (автоматически определяется по текущим точкам):"))
@@ -561,6 +582,11 @@ QPushButton:pressed {
         name_input = QLineEdit("Моя офлайн карта")
         layout.addWidget(name_input)
 
+        # Информация о размере
+        estimated_size = self.tile_manager.estimate_download_size(bounds, list(range(min_zoom.value(), max_zoom.value() + 1)))
+        size_label = QLabel(f"Примерный размер: {estimated_size} МБ")
+        layout.addWidget(size_label)
+
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(dialog.accept)
         buttons.rejected.connect(dialog.reject)
@@ -572,15 +598,22 @@ QPushButton:pressed {
             # Показываем диалог прогресса
             progress_dialog = QDialog(self)
             progress_dialog.setWindowTitle("Загрузка офлайн-карты")
-            progress_dialog.setFixedSize(300, 100)
+            progress_dialog.setFixedSize(400, 150)
             progress_layout = QVBoxLayout(progress_dialog)
 
             progress_label = QLabel("Загрузка тайлов...")
             progress_layout.addWidget(progress_label)
 
             progress_bar = QProgressBar()
-            progress_bar.setRange(0, 0)  # Неопределенный прогресс
+            progress_bar.setRange(0, 100)
             progress_layout.addWidget(progress_bar)
+
+            progress_text = QLabel("Подготовка к загрузке...")
+            progress_layout.addWidget(progress_text)
+
+            cancel_btn = QPushButton("Отмена")
+            cancel_btn.clicked.connect(lambda: self.cancel_download(progress_dialog))
+            progress_layout.addWidget(cancel_btn)
 
             progress_dialog.show()
 
@@ -588,10 +621,28 @@ QPushButton:pressed {
             self.download_thread = DownloadThread(
                 self.tile_manager, bounds, zoom_levels, name_input.text()
             )
+            self.download_thread.progress.connect(
+                lambda current, total: self.on_download_progress(current, total, progress_bar, progress_text)
+            )
             self.download_thread.finished.connect(
                 lambda count: self.on_download_finished(count, progress_dialog)
             )
             self.download_thread.start()
+
+    def cancel_download(self, progress_dialog):
+        """Отменяет загрузку"""
+        if self.download_thread and self.download_thread.isRunning():
+            self.download_thread.stop()
+            self.download_thread.wait(1000)  # Ждем 1 секунду для завершения
+        progress_dialog.close()
+        self.statusBar().showMessage("Загрузка отменена")
+
+    def on_download_progress(self, current, total, progress_bar, progress_label):
+        """Обновляет прогресс загрузки"""
+        if total > 0:
+            progress = int((current / total) * 100)
+            progress_bar.setValue(progress)
+            progress_label.setText(f"Загружено: {current} из {total} тайлов ({progress}%)")
 
     def on_download_finished(self, tiles_downloaded, progress_dialog):
         """Вызывается после завершения загрузки"""
@@ -603,11 +654,12 @@ QPushButton:pressed {
                 "Загрузка завершена",
                 f"Загружено {tiles_downloaded} тайлов для офлайн использования"
             )
+            self.statusBar().showMessage(f"Загружено {tiles_downloaded} тайлов")
         else:
-            QMessageBox.warning(
+            QMessageBox.information(
                 self,
                 "Загрузка завершена",
-                "Не было загружено новых тайлов (возможно, они уже были в кэше)"
+                "Все тайлы уже загружены в кэш"
             )
 
     def show_offline_stats(self):
@@ -617,7 +669,7 @@ QPushButton:pressed {
         stats_text = f"""
         Офлайн карты:
         Всего тайлов: {stats['total_tiles']}
-        Областей: {stats['total_tilesets']}
+        Областей: {len(stats['tilesets'])}
         Размер кэша: {stats['total_size_mb']} MB
 
         Доступные области:
@@ -642,8 +694,25 @@ QPushButton:pressed {
         if reply == QMessageBox.Yes:
             if self.tile_manager.clear_cache():
                 QMessageBox.information(self, "Успех", "Кэш офлайн-карт очищен")
+                self.statusBar().showMessage("Кэш офлайн-карт очищен")
             else:
                 QMessageBox.warning(self, "Ошибка", "Не удалось очистить кэш")
+
+    def force_offline_mode(self):
+        """Принудительно переключает в офлайн-режим"""
+        self.current_mode = "offline"
+        self.map_view.page().runJavaScript("switchToOfflineLayer();")
+        self.statusBar().showMessage("Офлайн режим активирован")
+        self.btn_offline_mode.setStyleSheet("background: #1c6ea4;")
+        self.btn_online_mode.setStyleSheet("background: #4361ee;")
+
+    def force_online_mode(self):
+        """Переключает в онлайн-режим"""
+        self.current_mode = "online"
+        self.map_view.page().runJavaScript("switchToOnlineLayer();")
+        self.statusBar().showMessage("Онлайн режим активирован")
+        self.btn_online_mode.setStyleSheet("background: #1c6ea4;")
+        self.btn_offline_mode.setStyleSheet("background: #4361ee;")
 
 
 class DialogBridge(QObject):
@@ -756,14 +825,6 @@ class DialogWindow(QMainWindow):
 
 
 if __name__ == "__main__":
-    # Скачиваем необходимые ассеты
-    try:
-        from download_assets import download_offline_assets
-
-        download_offline_assets()
-    except Exception as e:
-        print(f"Ошибка загрузки ассетов: {e}")
-
     # Создаем менеджер данных
     data_manager = DataManager(data_dir)
 
