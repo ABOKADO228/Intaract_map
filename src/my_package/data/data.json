@@ -1,34 +1,32 @@
 [
     {
-        "lat": 59.90257214059393,
-        "lng": 30.330929406863053,
-        "name": "d",
-        "deep": "d",
-        "filters": "d",
-        "debit": "d",
-        "comments": "d",
+        "lat": 59.925110310351776,
+        "lng": 30.308944273238716,
+        "name": "nh",
+        "deep": "b",
+        "filters": "bn",
+        "debit": "h",
+        "comments": "b",
         "color": "#4361ee",
         "fileNames": [
-            "dataGen_0bf37521.py",
-            "genTitles_4a741fe8.py"
+            "dataGen_1e82a286.py"
         ],
-        "fileName": "dataGen_0bf37521.py",
-        "id": "a2ae374e-b8a9-45a3-804b-41562b8996db"
+        "fileName": "dataGen_1e82a286.py",
+        "id": "81c41219-ba5e-46f7-b517-a1afb0d71507"
     },
     {
-        "lat": 59.93508415520617,
-        "lng": 30.348448810219963,
-        "name": "d",
-        "deep": "d",
-        "filters": "d",
-        "debit": "d",
-        "comments": "d",
+        "lat": 59.89723644123189,
+        "lng": 30.332303477714593,
+        "name": "a",
+        "deep": "a",
+        "filters": "a",
+        "debit": "a",
+        "comments": "a",
         "color": "#4361ee",
         "fileNames": [
-            "deepseek_mermaid_20250917_2907ee_c0ee6183.png",
-            "Модель качеств и компетенций предпринимателя_4d205cc8.html"
+            "Карта скважин_d169283c.py"
         ],
-        "fileName": "deepseek_mermaid_20250917_2907ee_c0ee6183.png",
-        "id": "95767700-ec26-4cf9-a11c-27b87a4044b1"
+        "fileName": "Карта скважин_d169283c.py",
+        "id": "6e8baff5-b7b5-49fe-b2a7-d4d17a893b26"
     }
 ]
