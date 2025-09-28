@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Интерактивная карта</title>
+    <title>Интерактивная карта - Офлайн режим</title>
     <meta charset="utf-8">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* Все стили остаются без изменений */
         #web-content {
             display: flex;
             width: 100%;
@@ -459,11 +460,35 @@
             font-size: 12px;
             margin-left: 8px;
         }
+        /* Новые стили для офлайн-статуса */
+        .offline-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+            border: 1px solid #ddd;
+        }
+        .offline-status.online {
+            color: #2ed573;
+            border-color: #2ed573;
+        }
+        .offline-status.offline {
+            color: #ff4757;
+            border-color: #ff4757;
+        }
     </style>
 </head>
 <body>
     <div id="web-content">
-        <div id="map"></div>
+        <div id="map">
+            <div id="offline-status" class="offline-status online">
+                <i class="fas fa-wifi"></i> Онлайн
+            </div>
+        </div>
         <div id="side-panel">
             <div class="search-container">
                 <h3><i class="fas fa-search"></i> Поиск точек</h3>
@@ -535,20 +560,23 @@
             </div>
         </div>
     </div>
+
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script>
-        // Инициализация карта
+        // Инициализация карты с офлайн-поддержкой
         var map = L.map('map').setView([59.93, 30.34], 12);
         var markers = L.layerGroup().addTo(map);
         var selectedMarkerIds = [];
         var markerData = [];
+
         // Данные точек (заменяются при загрузке)
         /* {{POINTS_DATA}} */
 
         var bridge = null;
         var colorChangeQueue = [];
         var colorChangeTimer = null;
+        var isOnline = true;
 
         // Инициализация WebChannel
         document.addEventListener("DOMContentLoaded", function() {
@@ -556,17 +584,104 @@
                 new QWebChannel(qt.webChannelTransport, function(channel) {
                     bridge = channel.objects.bridge;
                     console.log("WebChannel инициализирован");
+                    initOfflineMap();
                 });
             } else {
                 console.error("WebChannel не доступен");
+                initOfflineMap();
             }
         });
 
-        // Добавление слоя OpenStreetMap
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
+        function initOfflineMap() {
+            // Создаем CartoDB Positron слой (светлая тема)
+            var cartoDBLayer = L.tileLayer('https://cartodb-basemaps-a.global.ssl.fastly.net/rastertiles/voyager/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution">CARTO</a>',
+    minZoom: 0,
+    maxZoom: 18,
+    subdomains: 'abcd'
+});
 
+            // Переопределяем метод создания тайла для добавления офлайн-поддержки
+            var originalCreateTile = cartoDBLayer.createTile;
+
+            cartoDBLayer.createTile = function(coords, done) {
+                var tile = originalCreateTile.call(this, coords, done);
+                var url = this.getTileUrl(coords);
+
+                // Пытаемся получить тайл из кэша
+                if (bridge && typeof bridge.getTile === 'function') {
+                    bridge.getTile(url).then(function(dataUrl) {
+                        if (dataUrl && dataUrl.startsWith('data:')) {
+                            tile.onload = function() {
+                                var ctx = tile.getContext('2d');
+                                var img = new Image();
+                                img.onload = function() {
+                                    ctx.drawImage(img, 0, 0);
+                                    done(null, tile);
+                                };
+                                img.src = dataUrl;
+                            };
+                        } else {
+                            // Если тайла нет в кэше, загружаем обычным способом
+                            tile.crossOrigin = "Anonymous";
+                            tile.onload = function() {
+                                done(null, tile);
+                            };
+                            tile.onerror = function() {
+                                // Если загрузка не удалась, показываем пустой тайл
+                                var ctx = tile.getContext('2d');
+                                ctx.fillStyle = '#f8f9fa';
+                                ctx.fillRect(0, 0, 256, 256);
+                                ctx.fillStyle = '#6c757d';
+                                ctx.font = '12px Arial';
+                                ctx.textAlign = 'center';
+                                ctx.fillText('Офлайн', 128, 128);
+                                done(new Error('Tile load error'), tile);
+                            };
+                        }
+                    });
+                } else {
+                    tile.onload = function() {
+                        done(null, tile);
+                    };
+                    tile.onerror = function() {
+                        var ctx = tile.getContext('2d');
+                        ctx.fillStyle = '#f8f9fa';
+                        ctx.fillRect(0, 0, 256, 256);
+                        ctx.fillStyle = '#6c757d';
+                        ctx.font = '12px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('Офлайн', 128, 128);
+                        done(new Error('Tile load error'), tile);
+                    };
+                }
+
+                return tile;
+            };
+
+            // Добавляем слой на карту
+            cartoDBLayer.addTo(map);
+
+            // Мониторинг онлайн-статуса
+            updateOnlineStatus();
+            window.addEventListener('online', updateOnlineStatus);
+            window.addEventListener('offline', updateOnlineStatus);
+        }
+
+        function updateOnlineStatus() {
+            isOnline = navigator.onLine;
+            var statusElement = document.getElementById('offline-status');
+
+            if (isOnline) {
+                statusElement.innerHTML = '<i class="fas fa-wifi"></i> Онлайн';
+                statusElement.className = 'offline-status online';
+            } else {
+                statusElement.innerHTML = '<i class="fas fa-wifi-slash"></i> Офлайн';
+                statusElement.className = 'offline-status offline';
+            }
+        }
+
+        // Остальной JavaScript код остается без изменений
         // Инициализация точек
         function initPoints() {
             if (typeof initialMarkerData !== 'undefined' && initialMarkerData.length > 0) {
