@@ -1,32 +1,67 @@
 [
     {
-        "lat": 59.925110310351776,
-        "lng": 30.308944273238716,
-        "name": "nh",
-        "deep": "b",
-        "filters": "bn",
-        "debit": "h",
-        "comments": "b",
+        "lat": 59.89207204501527,
+        "lng": 30.309974826377346,
+        "name": "g",
+        "deep": "g",
+        "filters": "g",
+        "debit": "g",
+        "comments": "g",
         "color": "#4361ee",
-        "fileNames": [
-            "dataGen_1e82a286.py"
-        ],
-        "fileName": "dataGen_1e82a286.py",
-        "id": "81c41219-ba5e-46f7-b517-a1afb0d71507"
+        "fileNames": [],
+        "fileName": "",
+        "id": "13ea1d87-7cfa-4f4a-9a68-a0fbd6b05f32"
     },
     {
-        "lat": 59.89723644123189,
-        "lng": 30.332303477714593,
+        "lat": 59.89740857394582,
+        "lng": 30.24608053178155,
+        "name": "g",
+        "deep": "g",
+        "filters": "g",
+        "debit": "g",
+        "comments": "g",
+        "color": "#4361ee",
+        "fileNames": [],
+        "fileName": "",
+        "id": "1a21fa1d-c9f1-454b-9307-0d59e1860075"
+    },
+    {
+        "lat": 59.91238070578922,
+        "lng": 30.31478407435768,
+        "name": "g",
+        "deep": "g",
+        "filters": "g",
+        "debit": "g",
+        "comments": "g",
+        "color": "#4361ee",
+        "fileNames": [],
+        "fileName": "",
+        "id": "852134db-66a8-4a46-be25-61c2ef92c91b"
+    },
+    {
+        "lat": 59.88828431084497,
+        "lng": 30.343639562239638,
+        "name": "g",
+        "deep": "g",
+        "filters": "g",
+        "debit": "g",
+        "comments": "g",
+        "color": "#4361ee",
+        "fileNames": [],
+        "fileName": "",
+        "id": "fc6ff956-b1fc-49e0-b424-6bc00c7bc817"
+    },
+    {
+        "lat": 59.92063830295474,
+        "lng": 30.37558670953755,
         "name": "a",
         "deep": "a",
         "filters": "a",
         "debit": "a",
         "comments": "a",
         "color": "#4361ee",
-        "fileNames": [
-            "Карта скважин_d169283c.py"
-        ],
-        "fileName": "Карта скважин_d169283c.py",
-        "id": "6e8baff5-b7b5-49fe-b2a7-d4d17a893b26"
+        "fileNames": [],
+        "fileName": "",
+        "id": "a344468f-fd08-4db8-990e-2e1d14dfad82"
     }
 ]

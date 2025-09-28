@@ -416,9 +416,15 @@ class MapApp(QMainWindow):
                 QMessageBox.Yes | QMessageBox.No
             )
             if reply == QMessageBox.Yes:
-                self.data_manager.remove_point(point_id)
-                self.map_view.page().runJavaScript(f"removeMarker('{point_id}');")
-                self.statusBar().showMessage(f"Точка '{point['name']}' удалена")
+                reply1 = QMessageBox.question(
+                    self, "Подтверждение",
+                    "Вы точно уверены, что хотите ОЧИСТИТЬ карту и УДАЛИТЬ все ТОЧКИ?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
+                if reply1 == QMessageBox.Yes:
+                    self.data_manager.remove_point(point_id)
+                    self.map_view.page().runJavaScript(f"removeMarker('{point_id}');")
+                    self.statusBar().showMessage(f"Точка '{point['name']}' удалена")
 
     def clear_map(self):
         """Очищает карту и данные"""

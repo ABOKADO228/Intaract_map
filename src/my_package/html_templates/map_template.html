@@ -641,6 +641,15 @@
                 toggleMarkerSelection(markerInfo.id);
             });
 
+            marker.on('mouseover', () => {
+                marker.setPopupContent('Точка: ' + markerInfo.name + '\nГлубина: ' + markerInfo.deep);
+                marker.openPopup();
+            });
+
+            marker.on('mouseout', () => {
+                marker.setPopupContent(popupContent);
+            });
+
             updateNavTree();
             return marker;
         }
@@ -1143,6 +1152,7 @@
 
         // Функция поиска точек
         function searchPoints() {
+            hideAllMarkers()
             const searchText = document.getElementById('search-input').value.toLowerCase().trim();
             const resultsContainer = document.getElementById('search-results');
 
@@ -1168,6 +1178,7 @@
             } else {
                 resultsContainer.innerHTML = '';
                 results.forEach(marker => {
+                    toggleMarkerVisibility(marker.id)
                     const fileCount = marker.fileNames ? marker.fileNames.length : 0;
                     const resultItem = document.createElement('div');
                     resultItem.className = 'search-result-item';
