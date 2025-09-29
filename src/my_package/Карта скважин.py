@@ -27,12 +27,14 @@ os.makedirs(resources_dir, exist_ok=True)
 
 # Создание офлайн-ассетов
 try:
-    from create_offline_assets import create_offline_assets
+    import create_offline_assets
+
     print("Создание офлайн-ассетов...")
-    create_offline_assets()
+    create_offline_assets.create_offline_assets()
     print("Офлайн-ассеты созданы успешно")
 except Exception as e:
     print(f"Ошибка создания ассетов: {e}")
+
 
 class DownloadThread(QThread):
     finished = pyqtSignal(int)
@@ -205,13 +207,22 @@ class Bridge(QObject):
     @pyqtSlot(str, result=str)
     def getTile(self, url):
         """Возвращает тайл в формате Data URL"""
-        return self.parent.tile_manager.get_tile_data_url(url) or ""
+        try:
+            result = self.parent.tile_manager.get_tile_data_url(url)
+            return result or ""
+        except Exception as e:
+            print(f"Ошибка в getTile: {e}")
+            return ""
 
     @pyqtSlot(result=str)
     def getOfflineStats(self):
         """Возвращает статистику офлайн-карт в формате JSON"""
-        stats = self.parent.tile_manager.get_stats()
-        return json.dumps(stats)
+        try:
+            stats = self.parent.tile_manager.get_stats()
+            return json.dumps(stats)
+        except Exception as e:
+            print(f"Ошибка в getOfflineStats: {e}")
+            return json.dumps({"error": str(e)})
 
     @pyqtSlot()
     def switchToOfflineMode(self):
@@ -239,7 +250,7 @@ class MapApp(QMainWindow):
 
     def setup_ui(self):
         """Настраивает пользовательский интерфейс"""
-        self.setWindowTitle("Карта скважин - Офлайн режим")
+        self.setWindowTitle("Карта скважин - CartoDB Voyager (Офлайн режим)")
         self.resize(1200, 800)
         self.center_window()
 
@@ -258,7 +269,7 @@ class MapApp(QMainWindow):
         layout.addWidget(self.map_view, 1)
 
         # Статус бар
-        self.statusBar().showMessage("Готово (Офлайн режим)")
+        self.statusBar().showMessage("CartoDB Voyager - Готово (Офлайн режим)")
 
         # Загружаем карту
         self.load_map_html()
@@ -294,7 +305,6 @@ class MapApp(QMainWindow):
 
         self.btn_clear_cache = QPushButton("Очистить кэш")
         self.btn_clear_cache.clicked.connect(self.clear_offline_cache)
-
 
         buttons = [
             self.btn_add_point,
@@ -342,28 +352,40 @@ QPushButton:pressed {
 
     def load_map_html(self):
         """Загружает HTML карты с встроенными данными"""
-        # Загружаем базовый HTML шаблон
-        html_template = self.read_file("map_template.html")
+        try:
+            # Загружаем базовый HTML шаблон
+            html_template = self.read_file("map_template.html")
 
-        if not html_template:
-            QMessageBox.critical(self, "Ошибка", "Не удалось загрузить шаблон карты")
-            return
+            if not html_template:
+                QMessageBox.critical(self, "Ошибка", "Не удалось загрузить шаблон карты")
+                return
 
-        # Вставляем данные точек в HTML
-        points_json = json.dumps(self.points, ensure_ascii=False)
-        html_content = html_template.replace('/* {{POINTS_DATA}} */', f'var initialMarkerData = {points_json};')
+            print(f"Размер шаблона: {len(html_template)} символов")
 
-        # Загружаем карту
-        self.map_view.setHtml(html_content, QUrl.fromLocalFile(str(resources_dir)))
+            # Вставляем данные точек в HTML
+            points_json = json.dumps(self.points, ensure_ascii=False)
+            print(f"Количество точек: {len(self.points)}")
 
-        # Обработчик загрузки карты
-        self.map_view.loadFinished.connect(self.on_map_loaded)
+            html_content = html_template.replace('/* {{POINTS_DATA}} */', f'var initialMarkerData = {points_json};')
+
+            # Загружаем карту с правильным базовым URL
+            base_url = QUrl.fromLocalFile(str(resources_dir) + "/")
+            self.map_view.setHtml(html_content, base_url)
+
+            print(f"Карта загружена. Точки: {len(self.points)}")
+
+            # Обработчик загрузки карты
+            self.map_view.loadFinished.connect(self.on_map_loaded)
+
+        except Exception as e:
+            print(f"Ошибка загрузки карты: {e}")
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить карту: {str(e)}")
 
     def read_file(self, filename):
         """Читает файл из директории ресурсов"""
         try:
             file_path = os.path.join(resources_dir, filename)
-            print(f"Загрузка файла: {file_path}")
+            print(f"Попытка чтения файла: {file_path}")
             print(f"Файл существует: {os.path.exists(file_path)}")
 
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -500,15 +522,9 @@ QPushButton:pressed {
                 QMessageBox.Yes | QMessageBox.No
             )
             if reply == QMessageBox.Yes:
-                reply1 = QMessageBox.question(
-                    self, "Подтверждение",
-                    "Вы точно уверены, что хотите ОЧИСТИТЬ карту и УДАЛИТЬ все ТОЧКИ?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-                if reply1 == QMessageBox.Yes:
-                    self.data_manager.remove_point(point_id)
-                    self.map_view.page().runJavaScript(f"removeMarker('{point_id}');")
-                    self.statusBar().showMessage(f"Точка '{point['name']}' удалена")
+                self.data_manager.remove_point(point_id)
+                self.map_view.page().runJavaScript(f"removeMarker('{point_id}');")
+                self.statusBar().showMessage(f"Точка '{point['name']}' удалена")
 
     def clear_map(self):
         """Очищает карту и данные"""
@@ -549,7 +565,7 @@ QPushButton:pressed {
     def download_offline_map(self):
         """Диалог для скачивания офлайн-карты"""
         dialog = QDialog(self)
-        dialog.setWindowTitle("Скачать офлайн-карту")
+        dialog.setWindowTitle("Скачать офлайн-карту CartoDB Voyager")
         dialog.setFixedSize(400, 350)
         layout = QVBoxLayout(dialog)
 
@@ -579,11 +595,12 @@ QPushButton:pressed {
         layout.addWidget(max_zoom)
 
         layout.addWidget(QLabel("Название области:"))
-        name_input = QLineEdit("Моя офлайн карта")
+        name_input = QLineEdit("CartoDB Voyager - Моя офлайн карта")
         layout.addWidget(name_input)
 
         # Информация о размере
-        estimated_size = self.tile_manager.estimate_download_size(bounds, list(range(min_zoom.value(), max_zoom.value() + 1)))
+        estimated_size = self.tile_manager.estimate_download_size(bounds,
+                                                                  list(range(min_zoom.value(), max_zoom.value() + 1)))
         size_label = QLabel(f"Примерный размер: {estimated_size} МБ")
         layout.addWidget(size_label)
 
@@ -597,11 +614,11 @@ QPushButton:pressed {
 
             # Показываем диалог прогресса
             progress_dialog = QDialog(self)
-            progress_dialog.setWindowTitle("Загрузка офлайн-карты")
+            progress_dialog.setWindowTitle("Загрузка офлайн-карты CartoDB Voyager")
             progress_dialog.setFixedSize(400, 150)
             progress_layout = QVBoxLayout(progress_dialog)
 
-            progress_label = QLabel("Загрузка тайлов...")
+            progress_label = QLabel("Загрузка тайлов CartoDB Voyager...")
             progress_layout.addWidget(progress_label)
 
             progress_bar = QProgressBar()
@@ -652,14 +669,14 @@ QPushButton:pressed {
             QMessageBox.information(
                 self,
                 "Загрузка завершена",
-                f"Загружено {tiles_downloaded} тайлов для офлайн использования"
+                f"Загружено {tiles_downloaded} тайлов CartoDB Voyager для офлайн использования"
             )
-            self.statusBar().showMessage(f"Загружено {tiles_downloaded} тайлов")
+            self.statusBar().showMessage(f"Загружено {tiles_downloaded} тайлов CartoDB Voyager")
         else:
             QMessageBox.information(
                 self,
                 "Загрузка завершена",
-                "Все тайлы уже загружены в кэш"
+                "Все тайлы CartoDB Voyager уже загружены в кэш"
             )
 
     def show_offline_stats(self):
@@ -667,7 +684,7 @@ QPushButton:pressed {
         stats = self.tile_manager.get_stats()
 
         stats_text = f"""
-        Офлайн карты:
+        CartoDB Voyager - Офлайн карты:
         Всего тайлов: {stats['total_tiles']}
         Областей: {len(stats['tilesets'])}
         Размер кэша: {stats['total_size_mb']} MB
@@ -681,20 +698,20 @@ QPushButton:pressed {
         if not stats['tilesets']:
             stats_text += "\nНет сохраненных областей"
 
-        QMessageBox.information(self, "Статистика офлайн-карт", stats_text)
+        QMessageBox.information(self, "Статистика офлайн-карт CartoDB Voyager", stats_text)
 
     def clear_offline_cache(self):
         """Очищает кэш офлайн-карт"""
         reply = QMessageBox.question(
             self, "Подтверждение",
-            "Вы действительно хотите очистить кэш офлайн-карт?\nВсе скачанные тайлы будут удалены.",
+            "Вы действительно хотите очистить кэш офлайн-карт CartoDB Voyager?\nВсе скачанные тайлы будут удалены.",
             QMessageBox.Yes | QMessageBox.No
         )
 
         if reply == QMessageBox.Yes:
             if self.tile_manager.clear_cache():
-                QMessageBox.information(self, "Успех", "Кэш офлайн-карт очищен")
-                self.statusBar().showMessage("Кэш офлайн-карт очищен")
+                QMessageBox.information(self, "Успех", "Кэш офлайн-карт CartoDB Voyager очищен")
+                self.statusBar().showMessage("Кэш офлайн-карт CartoDB Voyager очищен")
             else:
                 QMessageBox.warning(self, "Ошибка", "Не удалось очистить кэш")
 
@@ -702,17 +719,13 @@ QPushButton:pressed {
         """Принудительно переключает в офлайн-режим"""
         self.current_mode = "offline"
         self.map_view.page().runJavaScript("switchToOfflineLayer();")
-        self.statusBar().showMessage("Офлайн режим активирован")
-        self.btn_offline_mode.setStyleSheet("background: #1c6ea4;")
-        self.btn_online_mode.setStyleSheet("background: #4361ee;")
+        self.statusBar().showMessage("CartoDB Voyager - Офлайн режим активирован")
 
     def force_online_mode(self):
         """Переключает в онлайн-режим"""
         self.current_mode = "online"
         self.map_view.page().runJavaScript("switchToOnlineLayer();")
-        self.statusBar().showMessage("Онлайн режим активирован")
-        self.btn_online_mode.setStyleSheet("background: #1c6ea4;")
-        self.btn_offline_mode.setStyleSheet("background: #4361ee;")
+        self.statusBar().showMessage("CartoDB Voyager - Онлайн режим активирован")
 
 
 class DialogBridge(QObject):

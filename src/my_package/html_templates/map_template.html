@@ -1,12 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Интерактивная карта  </title>
+    <title>Интерактивная карта - CartoDB Voyager</title>
     <meta charset="utf-8">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/leaflet/leaflet.css" />
     <style>
-        /* Все стили остаются без изменений */
         #web-content {
             display: flex;
             width: 100%;
@@ -524,55 +522,55 @@
     <div id="web-content">
         <div id="map">
             <div id="offline-status" class="offline-status offline">
-                <i class="fas fa-wifi-slash"></i> Офлайн режим
+                ○ Офлайн режим
             </div>
             <div class="mode-controls">
                 <button class="mode-btn offline" onclick="switchToOfflineLayer()">
-                    <i class="fas fa-wifi-slash"></i> Офлайн
+                    ○ Офлайн
                 </button>
                 <button class="mode-btn online" onclick="switchToOnlineLayer()">
-                    <i class="fas fa-wifi"></i> Онлайн
+                    ● Онлайн
                 </button>
             </div>
         </div>
         <div id="side-panel">
             <div class="search-container">
-                <h3><i class="fas fa-search"></i> Поиск точек</h3>
+                <h3>🔍 Поиск точек</h3>
                 <input type="text" id="search-input" class="search-input" placeholder="Введите название, комментарий или другие данные...">
                 <button id="search-btn" class="search-btn">Поиск</button>
                 <div id="search-results" class="search-results" style="display: none;"></div>
             </div>
 
             <div class="visibility-controls">
-                <h3><i class="fas fa-eye"></i> Управление видимостью</h3>
+                <h3>👁 Управление видимостью</h3>
                 <div class="visibility-buttons">
-                    <button id="hide-all-btn" class="visibility-btn hide"><i class="fas fa-eye-slash"></i> Скрыть все</button>
-                    <button id="show-all-btn" class="visibility-btn show"><i class="fas fa-eye"></i> Показать все</button>
-                    <button id="hide-selected-btn" class="visibility-btn hide"><i class="fas fa-minus-circle"></i> Скрыть выбранные</button>
-                    <button id="show-selected-btn" class="visibility-btn show"><i class="fas fa-plus-circle"></i> Показать выбранные</button>
+                    <button id="hide-all-btn" class="visibility-btn hide">👁 Скрыть все</button>
+                    <button id="show-all-btn" class="visibility-btn show">👁 Показать все</button>
+                    <button id="hide-selected-btn" class="visibility-btn hide">👁 Скрыть выбранные</button>
+                    <button id="show-selected-btn" class="visibility-btn show">👁 Показать выбранные</button>
                 </div>
             </div>
 
             <div class="selected-points-container">
-                <h3><i class="fas fa-check-circle"></i> Выбранные точки</h3>
+                <h3>✓ Выбранные точки</h3>
                 <div id="selected-points-list" class="selected-points-list">
                     <div class="empty">Нет выбранных точек</div>
                 </div>
                 <div class="selection-controls">
-                    <button id="select-all-btn" class="selection-btn select"><i class="fas fa-check-square"></i> Выбрать все</button>
-                    <button id="deselect-all-btn" class="selection-btn deselect"><i class="fas fa-times-circle"></i> Снять выделение</button>
+                    <button id="select-all-btn" class="selection-btn select">✓ Выбрать все</button>
+                    <button id="deselect-all-btn" class="selection-btn deselect">✗ Снять выделение</button>
                 </div>
             </div>
 
             <div class="nav-tree-container">
                 <div class="group-header" id="nav-tree-header">
                     <div class="group-title">
-                        <i class="fas fa-layer-group"></i>
+                        📁
                         <span>Элементы навигационного дерева</span>
                     </div>
                     <div class="group-toggle">
                         <button class="icon-btn" id="toggle-nav-tree">
-                            <i class="fas fa-chevron-down"></i>
+                            ▼
                         </button>
                     </div>
                 </div>
@@ -584,7 +582,7 @@
             </div>
 
             <div class="color-controls">
-                <h3><i class="fas fa-palette"></i> Изменение цвета маркеров</h3>
+                <h3>🎨 Изменение цвета маркеров</h3>
                 <div class="color-picker">
                     <label for="marker-color">Цвет маркера:</label>
                     <input type="color" id="marker-color" value="#4361ee">
@@ -601,17 +599,16 @@
             </div>
 
             <div class="point-info-container">
-                <h3><i class="fas fa-info-circle"></i> Информация о точке</h3>
+                <h3>ℹ️ Информация о точке</h3>
                 <div id="point-info">Выберите точку на карте или в списке</div>
             </div>
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script src="assets/leaflet.offline.min.js"></script>
+    <script src="assets/leaflet/leaflet.js"></script>
     <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script>
-        // Инициализация карты с офлайн-поддержкой
+        // Инициализация карты
         var map = L.map('map').setView([59.93, 30.34], 12);
         var markers = L.layerGroup().addTo(map);
         var selectedMarkerIds = [];
@@ -623,57 +620,157 @@
         var bridge = null;
         var colorChangeQueue = [];
         var colorChangeTimer = null;
-        var isOnline = true;
         var currentLayer = null;
+        var currentMode = 'offline';
 
-        // Инициализация WebChannel
-        document.addEventListener("DOMContentLoaded", function() {
-            if (typeof qt !== 'undefined') {
-                new QWebChannel(qt.webChannelTransport, function(channel) {
-                    bridge = channel.objects.bridge;
-                    console.log("WebChannel инициализирован");
-                    initOfflineMap();
-                });
-            } else {
-                console.error("WebChannel не доступен");
-                initOfflineMap();
+        // CartoDB Voyager конфигурация
+        var cartoDBVoyager = {
+            online: {
+                url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+                options: {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                    subdomains: 'abcd',
+                    maxZoom: 20,
+                    minZoom: 0
+                }
+            }
+        };
+
+        // Оптимизированный офлайн-слой
+        var OfflineTileLayer = L.TileLayer.extend({
+            initialize: function(options) {
+                L.TileLayer.prototype.initialize.call(this, '', options);
+                this._tileCache = {};
+            },
+
+            createTile: function (coords, done) {
+                var tile = L.DomUtil.create('canvas', 'leaflet-tile');
+                var ctx = tile.getContext('2d');
+                var size = this.getTileSize();
+                tile.width = size.x;
+                tile.height = size.y;
+
+                var url = this.getTileUrl(coords);
+
+                // Проверяем кэш сначала
+                if (this._tileCache[url]) {
+                    var img = new Image();
+                    img.onload = function() {
+                        ctx.drawImage(img, 0, 0);
+                        done(null, tile);
+                    };
+                    img.src = this._tileCache[url];
+                    return tile;
+                }
+
+                // Запрашиваем тайл через bridge
+                if (window.bridge) {
+                    window.bridge.getTile(url).then(function(dataUrl) {
+                        if (dataUrl && dataUrl.startsWith('data:')) {
+                            // Сохраняем в кэш
+                            this._tileCache[url] = dataUrl;
+
+                            var img = new Image();
+                            img.onload = function() {
+                                ctx.drawImage(img, 0, 0);
+                                done(null, tile);
+                            };
+                            img.onerror = function() {
+                                showOfflineTile(tile, done);
+                            };
+                            img.src = dataUrl;
+                        } else {
+                            showOfflineTile(tile, done);
+                        }
+                    }.bind(this)).catch(function(error) {
+                        console.error('Ошибка при запросе тайла:', error);
+                        showOfflineTile(tile, done);
+                    });
+                } else {
+                    showOfflineTile(tile, done);
+                }
+
+                return tile;
+            },
+
+            _update: function() {
+                this._tileCache = {};
+                L.TileLayer.prototype._update.call(this);
             }
         });
 
-        function initOfflineMap() {
-            // По умолчанию используем офлайн-слой
+        function showOfflineTile(tile, done) {
+            var ctx = tile.getContext('2d');
+            ctx.fillStyle = '#f8f9fa';
+            ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = '#6c757d';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Офлайн', 128, 128);
+            done(null, tile);
+        }
+
+        // Генерация URL для CartoDB Voyager
+        function getCartoDBTileUrl(coords) {
+            var zoom = coords.z;
+            var x = coords.x;
+            var y = coords.y;
+
+            // CartoDB Voyager URL pattern
+            var subdomain = 'abcd'[Math.abs(x + y) % 4];
+            return `https://${subdomain}.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png`;
+        }
+
+        // Инициализация WebChannel
+        if (typeof qt !== 'undefined') {
+            new QWebChannel(qt.webChannelTransport, function(channel) {
+                bridge = channel.objects.bridge;
+                console.log("WebChannel инициализирован");
+                initMap();
+            });
+        } else {
+            console.error("WebChannel не доступен");
+            initMap();
+        }
+
+        function initMap() {
+            // По умолчанию запускаем в офлайн-режиме
             switchToOfflineLayer();
 
-            // Мониторинг онлайн-статуса
-            updateOnlineStatus();
-            window.addEventListener('online', function() {
-                updateOnlineStatus();
-            });
-            window.addEventListener('offline', function() {
-                updateOnlineStatus();
-                // При потере интернета автоматически переключаемся на офлайн-режим
-                if (currentLayer && currentLayer.options && currentLayer.options.subdomains) {
-                    switchToOfflineLayer();
-                }
-            });
+            // Инициализируем точки
+            initPoints();
+
+            // Обновляем статус
+            setInterval(updateOnlineStatus, 1000);
         }
 
         function switchToOfflineLayer() {
+            if (currentMode === 'offline') {
+                console.log("Уже в офлайн-режиме");
+                return;
+            }
+
+            console.log("Переключение в офлайн-режим");
+
             // Удаляем текущий слой
             if (currentLayer) {
                 map.removeLayer(currentLayer);
             }
 
-            // Создаем и добавляем офлайн-слой
-            currentLayer = L.tileLayer.offline({
-                attribution: 'Офлайн карта | Тайлы из кэша',
+            // Создаем офлайн-слой с CartoDB Voyager URL pattern
+            currentLayer = new OfflineTileLayer({
+                attribution: 'CartoDB Voyager | Офлайн тайлы из кэша',
                 minZoom: 0,
-                maxZoom: 18
+                maxZoom: 20
             });
 
-            currentLayer.addTo(map);
+            // Переопределяем метод получения URL для CartoDB
+            currentLayer.getTileUrl = function(coords) {
+                return getCartoDBTileUrl(coords);
+            };
 
-            // Обновляем статус
+            currentLayer.addTo(map);
+            currentMode = 'offline';
             updateOnlineStatus();
 
             // Уведомляем Python о переключении
@@ -681,32 +778,36 @@
                 bridge.switchToOfflineMode();
             }
 
-            console.log("Переключен в офлайн-режим");
+            console.log("Успешно переключен в офлайн-режим");
         }
 
         function switchToOnlineLayer() {
+            if (currentMode === 'online') {
+                console.log("Уже в онлайн-режиме");
+                return;
+            }
+
             // Проверяем доступность интернета
             if (!navigator.onLine) {
                 alert("Нет подключения к интернету. Невозможно переключиться в онлайн-режим.");
                 return;
             }
 
+            console.log("Переключение в онлайн-режим");
+
             // Удаляем текущий слой
             if (currentLayer) {
                 map.removeLayer(currentLayer);
             }
 
-            // Создаем и добавляем онлайн-слой
-            currentLayer = L.tileLayer.online('https://cartodb-basemaps-a.global.ssl.fastly.net/rastertiles/voyager/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution">CARTO</a>',
-                minZoom: 0,
-                maxZoom: 18,
-                subdomains: 'abcd'
-            });
+            // Создаем онлайн-слой CartoDB Voyager
+            currentLayer = L.tileLayer(
+                cartoDBVoyager.online.url,
+                cartoDBVoyager.online.options
+            );
 
             currentLayer.addTo(map);
-
-            // Обновляем статус
+            currentMode = 'online';
             updateOnlineStatus();
 
             // Уведомляем Python о переключении
@@ -714,26 +815,22 @@
                 bridge.switchToOnlineMode();
             }
 
-            console.log("Переключен в онлайн-режим");
+            console.log("Успешно переключен в онлайн-режим");
         }
 
         function updateOnlineStatus() {
-            isOnline = navigator.onLine;
             var statusElement = document.getElementById('offline-status');
 
-            // Определяем текущий режим по наличию subdomains в опциях слоя
-            var isCurrentlyOnline = currentLayer && currentLayer.options && currentLayer.options.subdomains;
-
-            if (isCurrentlyOnline) {
-                statusElement.innerHTML = '<i class="fas fa-wifi"></i> Онлайн режим';
+            // Обновляем на основе текущего режима
+            if (currentMode === 'online') {
+                statusElement.innerHTML = '● CartoDB Voyager - Онлайн режим';
                 statusElement.className = 'offline-status online';
             } else {
-                statusElement.innerHTML = '<i class="fas fa-wifi-slash"></i> Офлайн режим';
+                statusElement.innerHTML = '○ CartoDB Voyager - Офлайн режим';
                 statusElement.className = 'offline-status offline';
             }
         }
 
-        // ВАШ ОРИГИНАЛЬНЫЙ JavaScript КОД ДЛЯ РАБОТЫ С ТОЧКАМИ
         // Инициализация точек
         function initPoints() {
             if (typeof initialMarkerData !== 'undefined' && initialMarkerData.length > 0) {
@@ -759,7 +856,7 @@
             }
         }
 
-        // Добавление маркера (ваша оригинальная функция)
+        // Добавление маркера
         function addMarker(lat, lng, name, id, deep, filters, debit, comments, color, fileName, fileNames) {
             if (!color) color = '#4361ee';
 
@@ -812,7 +909,6 @@
             return marker;
         }
 
-        // ОСТАЛЬНЫЕ ВАШИ ОРИГИНАЛЬНЫЕ ФУНКЦИИ
         function removeSelectedPoints() {
            selectedMarkerIds.forEach(markerId => {
                 const marker = markerData.find(m => m.id === markerId);
@@ -823,7 +919,6 @@
         }
 
         function updateNavTree() {
-            // Ваша оригинальная реализация
             const navTree = document.getElementById('nav-tree');
 
             // Очищаем дерево
@@ -857,7 +952,7 @@
 
                     groupHeader.innerHTML = `
                         <div class="group-title">
-                            <i class="fas fa-circle" style="color: ${color}"></i>
+                            <span style="color: ${color}">●</span>
                             <span>Цвет: ${color}</span>
                             <span style="margin-left: 8px; color: #777; font-size: 12px;">
                                 (${groupMarkers.length} точек, ${totalFiles} файлов)
@@ -865,10 +960,10 @@
                         </div>
                         <div class="group-toggle">
                             <button class="icon-btn toggle-group" data-color="${color}">
-                                <i class="fas fa-chevron-down"></i>
+                                ▼
                             </button>
                             <button class="icon-btn toggle-group-visibility" data-color="${color}">
-                                <i class="fas fa-eye"></i>
+                                👁
                             </button>
                         </div>
                     `;
@@ -916,7 +1011,7 @@
 
                         const visibilityBtn = document.createElement('button');
                         visibilityBtn.className = 'icon-btn';
-                        visibilityBtn.innerHTML = marker.visible ? '<i class="fas fa-eye"></i>' : '<i class="fas fa-eye-slash"></i>';
+                        visibilityBtn.innerHTML = marker.visible ? '👁' : '👁‍🗨';
                         visibilityBtn.title = marker.visible ? 'Скрыть точку' : 'Показать точку';
                         visibilityBtn.onclick = (function(marker) {
                             return function(e) {
@@ -927,7 +1022,7 @@
 
                         const deleteBtn = document.createElement('button');
                         deleteBtn.classList.add('delete-btn');
-                        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                        deleteBtn.innerHTML = '🗑';
                         deleteBtn.title = 'Удалить точку';
                         deleteBtn.onclick = (function(markerId) {
                             return function(e) {
@@ -958,16 +1053,14 @@
                         e.stopPropagation();
                         const groupId = this.getAttribute('data-color');
                         const content = document.getElementById(`group-${groupId.replace('#', '')}`);
-                        const icon = this.querySelector('i');
+                        const icon = this;
 
                         if (content.classList.contains('expanded')) {
                             content.classList.remove('expanded');
-                            icon.classList.remove('fa-chevron-up');
-                            icon.classList.add('fa-chevron-down');
+                            icon.innerHTML = '▼';
                         } else {
                             content.classList.add('expanded');
-                            icon.classList.remove('fa-chevron-down');
-                            icon.classList.add('fa-chevron-up');
+                            icon.innerHTML = '▲';
                         }
                     });
 
@@ -990,16 +1083,14 @@
                         if (!e.target.closest('.group-toggle')) {
                             const groupId = color.replace('#', '');
                             const content = document.getElementById(`group-${groupId}`);
-                            const icon = this.querySelector('.toggle-group i');
+                            const icon = this.querySelector('.toggle-group');
 
                             if (content.classList.contains('expanded')) {
                                 content.classList.remove('expanded');
-                                icon.classList.remove('fa-chevron-up');
-                                icon.classList.add('fa-chevron-down');
+                                icon.innerHTML = '▼';
                             } else {
                                 content.classList.add('expanded');
-                                icon.classList.remove('fa-chevron-down');
-                                icon.classList.add('fa-chevron-up');
+                                icon.innerHTML = '▲';
                             }
                         }
                     });
@@ -1008,7 +1099,6 @@
         }
 
         function updateSelectedPointsList() {
-            // Ваша оригинальная реализация
             const selectedList = document.getElementById('selected-points-list');
 
             // Очищаем список
@@ -1040,7 +1130,7 @@
 
                         const removeBtn = document.createElement('button');
                         removeBtn.className = 'remove-selected-btn';
-                        removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+                        removeBtn.innerHTML = '✗';
                         removeBtn.title = 'Убрать из выбранных';
                         removeBtn.onclick = (function(markerId) {
                             return function() {
@@ -1064,7 +1154,6 @@
         }
 
         function showPointInfo(marker) {
-            // Ваша оригинальная реализация
             const pointInfo = document.getElementById('point-info');
 
             // Создаем HTML для информации о файлах
@@ -1079,7 +1168,7 @@
                             <div class="file-item">
                                 <span class="file-name" title="${fileName}">${fileName}</span>
                                 <span class="file-link" onclick="openFile('${fileName}')">
-                                    <i class="fas fa-external-link-alt"></i>
+                                    📎
                                 </span>
                             </div>
                         `).join('')}
@@ -1403,16 +1492,14 @@
         // Обработчик для сворачивания/разворачивания навигационного дерева
         document.getElementById('toggle-nav-tree').addEventListener('click', function() {
             const content = document.getElementById('nav-tree-content');
-            const icon = this.querySelector('i');
+            const icon = this;
 
             if (content.classList.contains('expanded')) {
                 content.classList.remove('expanded');
-                icon.classList.remove('fa-chevron-up');
-                icon.classList.add('fa-chevron-down');
+                icon.innerHTML = '▼';
             } else {
                 content.classList.add('expanded');
-                icon.classList.remove('fa-chevron-down');
-                icon.classList.add('fa-chevron-up');
+                icon.innerHTML = '▲';
             }
         });
 

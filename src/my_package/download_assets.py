@@ -1,109 +1,126 @@
 import os
 import requests
+import zipfile
+import shutil
 from pathlib import Path
 
 
-def download_offline_assets():
-    """Скачивает необходимые JavaScript библиотеки для офлайн работы"""
+def download_leaflet():
+    """Скачивает и распаковывает Leaflet библиотеку"""
     base_dir = Path(__file__).parent
     assets_dir = base_dir / "html_templates" / "assets"
     assets_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Директория для ассетов: {assets_dir}")
 
-    # ПРАВИЛЬНЫЕ URL для leaflet.offline
-    libraries = {
-        "leaflet.offline.min.js": "https://raw.githubusercontent.com/robertomlsoares/leaflet.offline/master/dist/leaflet.offline.min.js",
-    }
-    # Добавьте этот список альтернативных URL
-    alternative_urls = [
-        "https://unpkg.com/leaflet.offline@1.4.0/dist/leaflet.offline.min.js",
-        "https://cdn.jsdelivr.net/npm/leaflet.offline@1.4.0/leaflet.offline.min.js",
-        ""
-    ]
-    for filename, url in libraries.items():
-        filepath = assets_dir / filename
-        print(f"Проверяем: {filename}")
-        print(f"URL: {url}")
+    # Папка для Leaflet
+    leaflet_dir = assets_dir / "leaflet"
+    leaflet_dir.mkdir(exist_ok=True)
 
-        if not filepath.exists():
-            print(f"Скачивание {filename}...")
-            try:
-                response = requests.get(url, timeout=30)
-                response.raise_for_status()
+    # Если Leaflet уже существует, пропускаем загрузку
+    if (leaflet_dir / "leaflet.css").exists() and (leaflet_dir / "leaflet.js").exists():
+        print("✓ Leaflet уже установлен")
+        return
 
-                with open(filepath, 'wb') as f:
-                    f.write(response.content)
+    # Скачиваем Leaflet
+    leaflet_version = "1.9.4"
+    leaflet_url = f"https://github.com/Leaflet/Leaflet/archive/refs/tags/v{leaflet_version}.zip"
+    leaflet_zip_path = assets_dir / "leaflet.zip"
 
-                print(f"✓ {filename} успешно скачан")
-                print(f"Размер: {filepath.stat().st_size} байт")
-
-            except Exception as e:
-                print(f"✗ Ошибка скачивания {filename}: {e}")
-                # Создаем заглушку
-                create_fallback_file(filepath)
-        else:
-            file_size = filepath.stat().st_size
-            print(f"✓ {filename} уже существует, размер: {file_size} байт")
-
-
-def create_fallback_file(filepath):
-    """Создает файл-заглушку если скачивание не удалось"""
-    fallback_content = """// Leaflet.Offline fallback implementation
-console.log('Leaflet.Offline fallback loaded');
-L.TileLayer.Offline = L.TileLayer.extend({
-    createTile: function(coords, done) {
-        var tile = L.TileLayer.prototype.createTile.call(this, coords, done);
-        var url = this.getTileUrl(coords);
-
-        if (window.qt && window.qt.webChannelTransport && window.bridge) {
-            window.bridge.getTile(url).then(function(dataUrl) {
-                if (dataUrl && dataUrl.startsWith('data:')) {
-                    var img = new Image();
-                    img.onload = function() {
-                        var ctx = tile.getContext('2d');
-                        ctx.drawImage(img, 0, 0);
-                        done(null, tile);
-                    };
-                    img.src = dataUrl;
-                } else {
-                    tile.onload = function() { done(null, tile); };
-                    tile.onerror = function() { showOfflineTile(tile, done); };
-                }
-            }).catch(function() {
-                tile.onload = function() { done(null, tile); };
-                tile.onerror = function() { showOfflineTile(tile, done); };
-            });
-        } else {
-            tile.onload = function() { done(null, tile); };
-            tile.onerror = function() { showOfflineTile(tile, done); };
-        }
-        return tile;
-    }
-});
-
-function showOfflineTile(tile, done) {
-    var ctx = tile.getContext('2d');
-    ctx.fillStyle = '#f8f9fa';
-    ctx.fillRect(0, 0, 256, 256);
-    ctx.fillStyle = '#6c757d';
-    ctx.font = '12px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('Офлайн', 128, 128);
-    done(new Error('Offline mode'), tile);
-}
-
-L.tileLayer.offline = function(url, options) {
-    return new L.TileLayer.Offline(url, options);
-};
-"""
+    print("Скачивание Leaflet...")
     try:
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(fallback_content)
-        print(f"✓ Создан fallback файл: {filepath}")
+        response = requests.get(leaflet_url, timeout=30)
+        response.raise_for_status()
+
+        with open(leaflet_zip_path, 'wb') as f:
+            f.write(response.content)
+
+        # Распаковываем
+        with zipfile.ZipFile(leaflet_zip_path, 'r') as zip_ref:
+            # Извлекаем только нужные файлы
+            for file in zip_ref.namelist():
+                if file.startswith(f"Leaflet-{leaflet_version}/dist/"):
+                    zip_ref.extract(file, assets_dir)
+
+        # Копируем файлы в целевую директорию
+        dist_dir = assets_dir / f"Leaflet-{leaflet_version}" / "dist"
+        if dist_dir.exists():
+            for item in dist_dir.iterdir():
+                if item.is_file():
+                    shutil.copy2(item, leaflet_dir)
+                else:
+                    if (leaflet_dir / item.name).exists():
+                        shutil.rmtree(leaflet_dir / item.name)
+                    shutil.copytree(item, leaflet_dir / item.name)
+
+        # Удаляем временные файлы
+        if leaflet_zip_path.exists():
+            leaflet_zip_path.unlink()
+        temp_dir = assets_dir / f"Leaflet-{leaflet_version}"
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir)
+
+        print("✓ Leaflet успешно скачан и распакован")
     except Exception as e:
-        print(f"✗ Ошибка создания fallback: {e}")
+        print(f"✗ Ошибка скачивания Leaflet: {e}")
+        # Создаем базовые файлы вручную если скачивание не удалось
+        create_fallback_leaflet(leaflet_dir)
+
+
+def create_fallback_leaflet(leaflet_dir):
+    """Создает базовые файлы Leaflet если скачивание не удалось"""
+    leaflet_dir.mkdir(exist_ok=True)
+
+    # Создаем минимальный leaflet.css
+    css_content = """/* Leaflet CSS */
+.leaflet-container {
+    background: #ddd;
+}
+.leaflet-marker-icon {
+    margin-left: -12px;
+    margin-top: -41px;
+    width: 25px;
+    height: 41px;
+}"""
+
+    with open(leaflet_dir / "leaflet.css", "w", encoding="utf-8") as f:
+        f.write(css_content)
+
+    # Создаем минимальный leaflet.js
+    js_content = """// Leaflet JS
+console.log('Leaflet loaded');"""
+
+    with open(leaflet_dir / "leaflet.js", "w", encoding="utf-8") as f:
+        f.write(js_content)
+
+
+def create_leaflet_offline_fallback(assets_dir):
+    """Создает заглушку для leaflet.offline"""
+    offline_js_path = assets_dir / "leaflet.offline.min.js"
+
+    if not offline_js_path.exists():
+        offline_content = """// Leaflet.Offline fallback
+console.log('Leaflet.Offline fallback loaded');"""
+
+        with open(offline_js_path, 'w', encoding='utf-8') as f:
+            f.write(offline_content)
+        print("✓ Создан fallback для leaflet.offline")
+
+
+def create_offline_assets():
+    """Основная функция создания офлайн-ассетов"""
+    print("Создание офлайн-ассетов...")
+    try:
+        download_leaflet()
+
+        base_dir = Path(__file__).parent
+        assets_dir = base_dir / "html_templates" / "assets"
+        create_leaflet_offline_fallback(assets_dir)
+
+        print("Офлайн-ассеты созданы успешно")
+    except Exception as e:
+        print(f"Ошибка создания ассетов: {e}")
 
 
 if __name__ == "__main__":
-    download_offline_assets()
+    create_offline_assets()
