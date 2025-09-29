@@ -3,15 +3,18 @@ import os
 import base64
 import binascii
 import json
-from itertools import count
 from pathlib import Path
-from PyQt5.QtCore import QObject, pyqtSlot, QUrl, Qt, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSlot, QUrl, Qt, pyqtSignal, QThread
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                             QPushButton, QMessageBox, QSizePolicy, QStatusBar)
+                             QPushButton, QMessageBox, QSizePolicy, QStatusBar, QDialog,
+                             QLabel, QSpinBox, QDialogButtonBox, QLineEdit, QProgressBar,
+                             QGridLayout, QGroupBox)
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 import uuid
 import subprocess
+
+from tile_manager import TileManager
 
 # Глобальные переменные для директорий
 base_dir = Path(__file__).parent
@@ -22,6 +25,50 @@ resources_dir = os.path.join(base_dir, "html_templates")
 os.makedirs(data_dir, exist_ok=True)
 os.makedirs(file_dir, exist_ok=True)
 os.makedirs(resources_dir, exist_ok=True)
+
+# Создание офлайн-ассетов
+try:
+    import create_offline_assets
+
+    print("Создание офлайн-ассетов...")
+    create_offline_assets.create_offline_assets()
+    print("Офлайн-ассеты созданы успешно")
+except Exception as e:
+    print(f"Ошибка создания ассетов: {e}")
+
+
+class DownloadThread(QThread):
+    finished = pyqtSignal(int)
+    progress = pyqtSignal(int, int)
+
+    def __init__(self, tile_manager, bounds, zoom_levels, name, visible_area=False):
+        super().__init__()
+        self.tile_manager = tile_manager
+        self.bounds = bounds
+        self.zoom_levels = zoom_levels
+        self.name = name
+        self.visible_area = visible_area
+        self._is_running = True
+
+    def stop(self):
+        self._is_running = False
+
+    def run(self):
+        try:
+            if self.visible_area:
+                # Для видимой области используем специальный метод
+                tiles_downloaded = self.tile_manager.download_visible_area(
+                    self.bounds, self.zoom_levels, self.name, self.progress, self
+                )
+            else:
+                # Для обычной области
+                tiles_downloaded = self.tile_manager.download_area(
+                    self.bounds, self.zoom_levels, self.name, self.progress, self
+                )
+            self.finished.emit(tiles_downloaded)
+        except Exception as e:
+            print(f"Ошибка загрузки: {e}")
+            self.finished.emit(0)
 
 
 class DataManager():
@@ -64,15 +111,12 @@ class DataManager():
             print(f"Точка с ID {point_id} не найдена.")
             return
 
-        # Обрабатываем множественные файлы
         file_names = point.get('fileNames', [])
         if not file_names:
-            # Для обратной совместимости с одиночными файлами
             single_file = point.get('fileName')
             if single_file and single_file not in [None, 'Null']:
                 file_names = [single_file]
 
-        # Удаляем файлы, которые не используются другими точками
         for file_name in file_names:
             can_delete_file = all(
                 file_name not in p.get('fileNames', []) and
@@ -90,7 +134,6 @@ class DataManager():
                 except OSError as e:
                     print(f"Ошибка при удалении файла: {e}")
 
-        # Удаляем точку
         self.current_data = [p for p in self.current_data if p.get('id') != point_id]
         self.save_data()
 
@@ -150,14 +193,12 @@ class Bridge(QObject):
         try:
             file_path = os.path.join(file_dir, fileName)
             if os.path.exists(file_path):
-                # Для Windows используем os.startfile
                 if sys.platform == "win32":
                     os.startfile(file_path)
                 else:
-                    # Для других платформ используем subprocess
-                    if sys.platform == "darwin":  # macOS
+                    if sys.platform == "darwin":
                         subprocess.call(('open', file_path))
-                    else:  # Linux
+                    else:
                         subprocess.call(('xdg-open', file_path))
                 self.parent.statusBar().showMessage(f"Открытие файла: {fileName}")
             else:
@@ -166,6 +207,55 @@ class Bridge(QObject):
             print(f"Ошибка при открытии файла: {e}")
             self.parent.statusBar().showMessage(f"Ошибка при открытии файла: {fileName}")
 
+    @pyqtSlot(str, result=str)
+    def getTile(self, url):
+        """Возвращает тайл в формате Data URL"""
+        try:
+            result = self.parent.tile_manager.get_tile_data_url(url)
+            return result or ""
+        except Exception as e:
+            print(f"Ошибка в getTile: {e}")
+            return ""
+
+    @pyqtSlot(result=str)
+    def getOfflineStats(self):
+        """Возвращает статистику офлайн-карт в формате JSON"""
+        try:
+            stats = self.parent.tile_manager.get_stats()
+            return json.dumps(stats)
+        except Exception as e:
+            print(f"Ошибка в getOfflineStats: {e}")
+            return json.dumps({"error": str(e)})
+
+    @pyqtSlot()
+    def switchToOfflineMode(self):
+        """Принудительно переключает в офлайн-режим"""
+        self.parent.force_offline_mode()
+
+    @pyqtSlot()
+    def switchToOnlineMode(self):
+        """Переключает в онлайн-режим"""
+        self.parent.force_online_mode()
+
+    @pyqtSlot(result=str)
+    def getCurrentMapBounds(self):
+        """Возвращает текущие границы карты в формате JSON"""
+        try:
+            bounds = self.parent.get_current_map_bounds()
+            return json.dumps(bounds) if bounds else "null"
+        except Exception as e:
+            print(f"Ошибка получения границ карты: {e}")
+            return "null"
+
+    @pyqtSlot(result=int)
+    def getCurrentZoom(self):
+        """Возвращает текущий zoom уровень карты"""
+        try:
+            return self.parent.get_current_zoom()
+        except Exception as e:
+            print(f"Ошибка получения zoom уровня: {e}")
+            return 12
+
 
 class MapApp(QMainWindow):
     def __init__(self, data_manager):
@@ -173,37 +263,36 @@ class MapApp(QMainWindow):
         self.data_manager = data_manager
         self.points = data_manager.current_data
         self.point_mode = False
+        self.tile_manager = TileManager(data_dir)
+        self.download_thread = None
+        self.current_mode = "offline"
+
+        # Переменные для хранения текущего состояния карты
+        self.current_bounds = None
+        self.current_zoom = 12
 
         self.setup_ui()
         self.setup_web_channel()
 
     def setup_ui(self):
         """Настраивает пользовательский интерфейс"""
-        self.setWindowTitle("Карта скважин")
+        self.setWindowTitle("Карта скважин - CartoDB Voyager (Офлайн режим)")
         self.resize(1200, 800)
         self.center_window()
 
-        # Центральный виджет и компоновка
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
-        # Создаем карту
         self.map_view = QWebEngineView()
         self.map_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        # Добавляем карту
         layout.addWidget(self.map_view, 1)
 
-        # Статус бар
-        self.statusBar().showMessage("Готово")
+        self.statusBar().showMessage("CartoDB Voyager - Готово (Офлайн режим)")
 
-        # Загружаем карту
         self.load_map_html()
-
-        # Панель инструментов
         self.setup_toolbar(layout)
 
     def center_window(self):
@@ -214,37 +303,59 @@ class MapApp(QMainWindow):
         self.move(frame_geometry.topLeft())
 
     def setup_toolbar(self, layout):
-        """Создает панель инструментов"""
+        """Создает панель инструментов с офлайн-функциями"""
         toolbar = QWidget()
         toolbar_layout = QHBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(0, 0, 0, 0)
 
+        # Основные кнопки
         self.btn_add_point = QPushButton("Добавить точку")
         self.btn_add_point.clicked.connect(self.enable_add_point_mode)
         self.btn_del_point = QPushButton("Удалить выбранные точки")
         self.btn_del_point.clicked.connect(self.remove_selected_points)
 
-        for btn in [self.btn_add_point, self.btn_del_point]:
+        # Офлайн-функции
+        self.btn_download_map = QPushButton("Скачать офлайн-карту")
+        self.btn_download_map.clicked.connect(self.download_offline_map)
+
+        self.btn_download_visible = QPushButton("Скачать видимую область")
+        self.btn_download_visible.clicked.connect(self.download_visible_area)
+
+        self.btn_offline_stats = QPushButton("Статистика офлайн-карт")
+        self.btn_offline_stats.clicked.connect(self.show_offline_stats)
+
+        self.btn_clear_cache = QPushButton("Очистить кэш")
+        self.btn_clear_cache.clicked.connect(self.clear_offline_cache)
+
+        buttons = [
+            self.btn_add_point,
+            self.btn_del_point,
+            self.btn_download_map,
+            self.btn_download_visible,
+            self.btn_offline_stats,
+            self.btn_clear_cache
+        ]
+
+        for btn in buttons:
             btn.setMinimumHeight(35)
-            btn.setMinimumWidth(260)
+            btn.setMinimumWidth(160)
             btn.setStyleSheet("""
-    QPushButton {
-        padding: 8px 12px;
-        background: #4361ee;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        font-weight: bold;
-        width: 100%;
-        transition: background 0.2s;
-    }
-    QPushButton:hover {
-        background-color: #2980b9;
-    }
-    QPushButton:pressed {
-        background-color: #1c6ea4;
-    }
+QPushButton {
+    padding: 8px 12px;
+    background: #4361ee;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+QPushButton:hover {
+    background-color: #2980b9;
+}
+QPushButton:pressed {
+    background-color: #1c6ea4;
+}
 """)
             toolbar_layout.addWidget(btn)
 
@@ -253,7 +364,6 @@ class MapApp(QMainWindow):
 
     def remove_selected_points(self):
         self.map_view.page().runJavaScript(f"removeSelectedPoints();")
-        print("а")
 
     def setup_web_channel(self):
         """Настраивает WebChannel для связи с JavaScript"""
@@ -264,22 +374,23 @@ class MapApp(QMainWindow):
 
     def load_map_html(self):
         """Загружает HTML карты с встроенными данными"""
-        # Загружаем базовый HTML шаблон
-        html_template = self.read_file("map_template.html")
+        try:
+            html_template = self.read_file("map_template.html")
+            if not html_template:
+                QMessageBox.critical(self, "Ошибка", "Не удалось загрузить шаблон карты")
+                return
 
-        if not html_template:
-            QMessageBox.critical(self, "Ошибка", "Не удалось загрузить шаблон карты")
-            return
+            points_json = json.dumps(self.points, ensure_ascii=False)
+            html_content = html_template.replace('/* {{POINTS_DATA}} */', f'var initialMarkerData = {points_json};')
 
-        # Вставляем данные точек в HTML
-        points_json = json.dumps(self.points, ensure_ascii=False)
-        html_content = html_template.replace('/* {{POINTS_DATA}} */', f'var initialMarkerData = {points_json};')
+            base_url = QUrl.fromLocalFile(str(resources_dir) + "/")
+            self.map_view.setHtml(html_content, base_url)
 
-        # Загружаем карту
-        self.map_view.setHtml(html_content, QUrl.fromLocalFile(os.path.abspath(".")))
+            self.map_view.loadFinished.connect(self.on_map_loaded)
 
-        # Обработчик загрузки карты
-        self.map_view.loadFinished.connect(self.on_map_loaded)
+        except Exception as e:
+            print(f"Ошибка загрузки карты: {e}")
+            QMessageBox.critical(self, "Ошибка", f"Не удалось загрузить карту: {str(e)}")
 
     def read_file(self, filename):
         """Читает файл из директории ресурсов"""
@@ -293,8 +404,16 @@ class MapApp(QMainWindow):
 
     def on_map_loaded(self):
         """Вызывается после загрузки карты"""
-        # Инициализируем точки на карте
+        print("Карта загружена, инициализация точек...")
         self.map_view.page().runJavaScript("initPoints();")
+
+    def get_current_map_bounds(self):
+        """Получает текущие границы карты через JavaScript"""
+        return self.current_bounds
+
+    def get_current_zoom(self):
+        """Получает текущий zoom уровень карты"""
+        return self.current_zoom
 
     def enable_add_point_mode(self):
         """Активирует режим добавления точки"""
@@ -368,13 +487,12 @@ class MapApp(QMainWindow):
             "debit": data.get("debit"),
             "comments": data.get("comments"),
             "color": data.get("color", "#4361ee"),
-            "fileNames": data.get("fileNames", []),  # Множественные файлы
-            "fileName": data.get("fileNames", [""])[0] if data.get("fileNames") else ""  # Для обратной совместимости
+            "fileNames": data.get("fileNames", []),
+            "fileName": data.get("fileNames", [""])[0] if data.get("fileNames") else ""
         }
 
         point_id = self.data_manager.add_point(new_point)
 
-        # Формируем JavaScript код для добавления маркера
         js_code = f"""
         addMarker(
             {lat}, 
@@ -403,8 +521,6 @@ class MapApp(QMainWindow):
         self.map_view.page().runJavaScript("disableClickHandler();")
 
     def remove_point(self, point_id):
-        """Удаляет точку по ID"""
-        # Находим точку для отображения информации
         point = next((p for p in self.points if p.get('id') == point_id), None)
         if point:
             file_count = len(point.get('fileNames', []))
@@ -421,7 +537,6 @@ class MapApp(QMainWindow):
                 self.statusBar().showMessage(f"Точка '{point['name']}' удалена")
 
     def clear_map(self):
-        """Очищает карту и данные"""
         reply = QMessageBox.question(
             self, "Подтверждение",
             "Вы действительно хотите очистить карту и удалить все точки?",
@@ -435,17 +550,13 @@ class MapApp(QMainWindow):
             self.point_mode = False
 
     def update_color(self, points_data):
-        """Обновляет цвета точек в данных"""
         try:
-            # Создаем словарь для быстрого поиска точек по ID
             points_dict = {point['id']: point for point in self.data_manager.current_data}
 
-            # Обновляем цвета
             for point in points_data:
                 if point['id'] in points_dict:
                     points_dict[point['id']]['color'] = point.get('color', '#4361ee')
 
-            # Преобразуем обратно в список
             self.data_manager.current_data = list(points_dict.values())
             self.data_manager.save_data()
             self.points = self.data_manager.current_data
@@ -454,6 +565,317 @@ class MapApp(QMainWindow):
         except Exception as e:
             print(f"Ошибка при обновлении цветов: {e}")
             self.statusBar().showMessage("Ошибка при обновлении цветов маркеров")
+
+    # ОФЛАЙН-ФУНКЦИИ
+    def download_offline_map(self):
+        """Диалог для скачивания офлайн-карты по всем точкам"""
+        if self.points:
+            lats = [p['lat'] for p in self.points]
+            lngs = [p['lng'] for p in self.points]
+            bounds = [min(lats), min(lngs), max(lats), max(lngs)]
+        else:
+            bounds = [59.8, 30.1, 60.1, 30.5]
+
+        self.show_download_dialog(bounds, "CartoDB Voyager - Моя офлайн карта")
+
+    def download_visible_area(self):
+        """Скачивает только видимую область карты"""
+        # Получаем текущие границы карты через JavaScript
+        js_code = """
+        var bounds = map.getBounds();
+        var zoom = map.getZoom();
+        JSON.stringify({
+            north: bounds.getNorth(),
+            south: bounds.getSouth(), 
+            east: bounds.getEast(),
+            west: bounds.getWest(),
+            zoom: zoom
+        });
+        """
+
+        def handle_bounds(result):
+            try:
+                bounds_data = json.loads(result)
+                bounds = [
+                    bounds_data['south'],
+                    bounds_data['west'],
+                    bounds_data['north'],
+                    bounds_data['east']
+                ]
+                current_zoom = bounds_data['zoom']
+
+                # Показываем диалог для подтверждения загрузки видимой области
+                self.show_visible_area_dialog(bounds, current_zoom)
+
+            except Exception as e:
+                print(f"Ошибка получения границ карты: {e}")
+                QMessageBox.warning(self, "Ошибка", "Не удалось получить границы карты")
+
+        self.map_view.page().runJavaScript(js_code, handle_bounds)
+
+    def show_visible_area_dialog(self, bounds, current_zoom):
+        """Показывает диалог для загрузки видимой области с выбором zoom слоев"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Скачать видимую область CartoDB Voyager")
+        dialog.setFixedSize(500, 450)
+        layout = QVBoxLayout(dialog)
+
+        # Информация о текущей области
+        info_group = QGroupBox("Информация о видимой области")
+        info_layout = QGridLayout(info_group)
+
+        info_layout.addWidget(QLabel("Текущий zoom:"), 0, 0)
+        info_layout.addWidget(QLabel(f"{current_zoom}"), 0, 1)
+
+        info_layout.addWidget(QLabel("Границы:"), 1, 0)
+        bounds_label = QLabel(f"{bounds[0]:.4f}, {bounds[1]:.4f}, {bounds[2]:.4f}, {bounds[3]:.4f}")
+        bounds_label.setWordWrap(True)
+        info_layout.addWidget(bounds_label, 1, 1)
+
+        layout.addWidget(info_group)
+
+        # Выбор zoom слоев
+        zoom_group = QGroupBox("Выбор zoom слоев для скачивания")
+        zoom_layout = QGridLayout(zoom_group)
+
+        zoom_layout.addWidget(QLabel("Минимальный zoom:"), 0, 0)
+        min_zoom = QSpinBox()
+        min_zoom.setRange(0, 18)
+        min_zoom.setValue(max(0, current_zoom - 2))
+        min_zoom.valueChanged.connect(lambda: self.update_zoom_range(min_zoom, max_zoom))
+        zoom_layout.addWidget(min_zoom, 0, 1)
+
+        zoom_layout.addWidget(QLabel("Максимальный zoom:"), 1, 0)
+        max_zoom = QSpinBox()
+        max_zoom.setRange(0, 18)
+        max_zoom.setValue(min(18, current_zoom + 2))
+        max_zoom.valueChanged.connect(lambda: self.update_zoom_range(min_zoom, max_zoom))
+        zoom_layout.addWidget(max_zoom, 1, 1)
+
+        zoom_layout.addWidget(QLabel("Количество слоев:"), 2, 0)
+        zoom_count_label = QLabel(f"{max_zoom.value() - min_zoom.value() + 1}")
+        zoom_layout.addWidget(zoom_count_label, 2, 1)
+
+        # Список выбранных zoom уровней
+        zoom_layout.addWidget(QLabel("Выбранные zoom:"), 3, 0)
+        zoom_list_label = QLabel(self.get_zoom_list_text(min_zoom.value(), max_zoom.value()))
+        zoom_list_label.setWordWrap(True)
+        zoom_layout.addWidget(zoom_list_label, 3, 1)
+
+        layout.addWidget(zoom_group)
+
+        # Название и информация о размере
+        layout.addWidget(QLabel("Название области:"))
+        name_input = QLineEdit(f"CartoDB Voyager - Видимая область (zoom {min_zoom.value()}-{max_zoom.value()})")
+        layout.addWidget(name_input)
+
+        # Динамическое обновление оценки размера
+        estimated_size = self.tile_manager.estimate_download_size(bounds,
+                                                                  list(range(min_zoom.value(), max_zoom.value() + 1)))
+        size_label = QLabel(f"Примерный размер: {estimated_size} МБ")
+        layout.addWidget(size_label)
+
+        # Функция для обновления размера при изменении zoom
+        def update_size():
+            zoom_levels = list(range(min_zoom.value(), max_zoom.value() + 1))
+            estimated_size = self.tile_manager.estimate_download_size(bounds, zoom_levels)
+            size_label.setText(f"Примерный размер: {estimated_size} МБ")
+            zoom_count_label.setText(f"{len(zoom_levels)}")
+            zoom_list_label.setText(self.get_zoom_list_text(min_zoom.value(), max_zoom.value()))
+            name_input.setText(f"CartoDB Voyager - Видимая область (zoom {min_zoom.value()}-{max_zoom.value()})")
+
+        min_zoom.valueChanged.connect(update_size)
+        max_zoom.valueChanged.connect(update_size)
+
+        info_label = QLabel("Будут загружены тайлы для выбранных zoom уровней в пределах видимой области.")
+        info_label.setStyleSheet("color: #666; font-size: 12px;")
+        layout.addWidget(info_label)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec_() == QDialog.Accepted:
+            zoom_levels = list(range(min_zoom.value(), max_zoom.value() + 1))
+            self.start_download(bounds, zoom_levels, name_input.text(), True)
+
+    def update_zoom_range(self, min_zoom, max_zoom):
+        """Обновляет диапазон zoom уровней"""
+        if min_zoom.value() > max_zoom.value():
+            max_zoom.setValue(min_zoom.value())
+
+    def get_zoom_list_text(self, min_zoom, max_zoom):
+        """Возвращает текстовое представление выбранных zoom уровней"""
+        if max_zoom - min_zoom <= 5:
+            return ", ".join(map(str, range(min_zoom, max_zoom + 1)))
+        else:
+            return f"{min_zoom}-{max_zoom}"
+
+    def show_download_dialog(self, bounds, default_name):
+        """Показывает диалог для скачивания офлайн-карты"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Скачать офлайн-карту CartoDB Voyager")
+        dialog.setFixedSize(400, 350)
+        layout = QVBoxLayout(dialog)
+
+        layout.addWidget(QLabel("Область карты:"))
+
+        bounds_label = QLabel(f"Границы: {bounds[0]:.4f}, {bounds[1]:.4f}, {bounds[2]:.4f}, {bounds[3]:.4f}")
+        layout.addWidget(bounds_label)
+
+        layout.addWidget(QLabel("Минимальный zoom:"))
+        min_zoom = QSpinBox()
+        min_zoom.setRange(0, 18)
+        min_zoom.setValue(10)
+        layout.addWidget(min_zoom)
+
+        layout.addWidget(QLabel("Максимальный zoom:"))
+        max_zoom = QSpinBox()
+        max_zoom.setRange(0, 18)
+        max_zoom.setValue(15)
+        layout.addWidget(max_zoom)
+
+        layout.addWidget(QLabel("Название области:"))
+        name_input = QLineEdit(default_name)
+        layout.addWidget(name_input)
+
+        estimated_size = self.tile_manager.estimate_download_size(bounds,
+                                                                  list(range(min_zoom.value(), max_zoom.value() + 1)))
+        size_label = QLabel(f"Примерный размер: {estimated_size} МБ")
+        layout.addWidget(size_label)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec_() == QDialog.Accepted:
+            zoom_levels = list(range(min_zoom.value(), max_zoom.value() + 1))
+            self.start_download(bounds, zoom_levels, name_input.text(), False)
+
+    def start_download(self, bounds, zoom_levels, name, is_visible_area):
+        """Запускает процесс загрузки тайлов"""
+        progress_dialog = QDialog(self)
+        if is_visible_area:
+            progress_dialog.setWindowTitle("Загрузка видимой области CartoDB Voyager")
+        else:
+            progress_dialog.setWindowTitle("Загрузка офлайн-карты CartoDB Voyager")
+
+        progress_dialog.setFixedSize(400, 150)
+        progress_layout = QVBoxLayout(progress_dialog)
+
+        if is_visible_area:
+            progress_label = QLabel(f"Загрузка видимой области ({len(zoom_levels)} zoom слоев)...")
+        else:
+            progress_label = QLabel(f"Загрузка тайлов CartoDB Voyager ({len(zoom_levels)} zoom слоев)...")
+        progress_layout.addWidget(progress_label)
+
+        progress_bar = QProgressBar()
+        progress_bar.setRange(0, 100)
+        progress_layout.addWidget(progress_bar)
+
+        progress_text = QLabel("Подготовка к загрузке...")
+        progress_layout.addWidget(progress_text)
+
+        cancel_btn = QPushButton("Отмена")
+        cancel_btn.clicked.connect(lambda: self.cancel_download(progress_dialog))
+        progress_layout.addWidget(cancel_btn)
+
+        progress_dialog.show()
+
+        self.download_thread = DownloadThread(
+            self.tile_manager, bounds, zoom_levels, name, is_visible_area
+        )
+        self.download_thread.progress.connect(
+            lambda current, total: self.on_download_progress(current, total, progress_bar, progress_text)
+        )
+        self.download_thread.finished.connect(
+            lambda count: self.on_download_finished(count, progress_dialog, is_visible_area, zoom_levels)
+        )
+        self.download_thread.start()
+
+    def cancel_download(self, progress_dialog):
+        """Отменяет загрузку"""
+        if self.download_thread and self.download_thread.isRunning():
+            self.download_thread.stop()
+            self.download_thread.wait(1000)
+        progress_dialog.close()
+        self.statusBar().showMessage("Загрузка отменена")
+
+    def on_download_progress(self, current, total, progress_bar, progress_label):
+        """Обновляет прогресс загрузки"""
+        if total > 0:
+            progress = int((current / total) * 100)
+            progress_bar.setValue(progress)
+            progress_label.setText(f"Загружено: {current} из {total} тайлов ({progress}%)")
+
+    def on_download_finished(self, tiles_downloaded, progress_dialog, is_visible_area, zoom_levels):
+        """Вызывается после завершения загрузки"""
+        progress_dialog.close()
+
+        if tiles_downloaded > 0:
+            if is_visible_area:
+                message = f"Загружено {tiles_downloaded} тайлов видимой области ({len(zoom_levels)} zoom слоев)"
+            else:
+                message = f"Загружено {tiles_downloaded} тайлов CartoDB Voyager ({len(zoom_levels)} zoom слоев)"
+
+            QMessageBox.information(self, "Загрузка завершена", message)
+            self.statusBar().showMessage(message)
+        else:
+            QMessageBox.information(
+                self,
+                "Загрузка завершена",
+                "Все тайлы уже загружены в кэш"
+            )
+
+    def show_offline_stats(self):
+        """Показывает статистику офлайн-карт"""
+        stats = self.tile_manager.get_stats()
+
+        stats_text = f"""
+        CartoDB Voyager - Офлайн карты:
+        Всего тайлов: {stats['total_tiles']}
+        Областей: {len(stats['tilesets'])}
+        Размер кэша: {stats['total_size_mb']} MB
+
+        Доступные области:
+        """
+
+        for name, info in stats['tilesets'].items():
+            stats_text += f"\n- {name}: zoom {info['min_zoom']}-{info['max_zoom']}"
+
+        if not stats['tilesets']:
+            stats_text += "\nНет сохраненных областей"
+
+        QMessageBox.information(self, "Статистика офлайн-карт CartoDB Voyager", stats_text)
+
+    def clear_offline_cache(self):
+        """Очищает кэш офлайн-карт"""
+        reply = QMessageBox.question(
+            self, "Подтверждение",
+            "Вы действительно хотите очистить кэш офлайн-карт CartoDB Voyager?\nВсе скачанные тайлы будут удалены.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.Yes:
+            if self.tile_manager.clear_cache():
+                QMessageBox.information(self, "Успех", "Кэш офлайн-карт CartoDB Voyager очищен")
+                self.statusBar().showMessage("Кэш офлайн-карт CartoDB Voyager очищен")
+            else:
+                QMessageBox.warning(self, "Ошибка", "Не удалось очистить кэш")
+
+    def force_offline_mode(self):
+        """Принудительно переключает в офлайн-режим"""
+        self.current_mode = "offline"
+        self.map_view.page().runJavaScript("switchToOfflineLayer();")
+        self.statusBar().showMessage("CartoDB Voyager - Офлайн режим активирован")
+
+    def force_online_mode(self):
+        """Переключает в онлайн-режим"""
+        self.current_mode = "online"
+        self.map_view.page().runJavaScript("switchToOnlineLayer();")
+        self.statusBar().showMessage("CartoDB Voyager - Онлайн режим активирован")
 
 
 class DialogBridge(QObject):
@@ -468,7 +890,6 @@ class DialogBridge(QObject):
             files_data = data.get('files', [])
             saved_file_names = []
 
-            # Обрабатываем каждый файл
             for file_item in files_data:
                 file_data = file_item.get('fileData')
                 file_name = file_item.get('fileName')
@@ -478,21 +899,17 @@ class DialogBridge(QObject):
                         if file_data == 'data:':
                             base64_data = b''
                         else:
-                            # Извлекаем base64 данные из Data URL
                             if file_data.startswith('data:'):
                                 base64_data = file_data.split(',', 1)[1]
                             else:
                                 base64_data = file_data
                         print(base64_data)
-                        # Декодируем base64
                         file_bytes = base64.b64decode(base64_data)
                         print(f"Файл '{file_name}' успешно декодирован, размер: {len(file_bytes)} байт")
 
-                        # Генерируем уникальное имя файла для избежания конфликтов
                         base_name, extension = os.path.splitext(file_name)
                         unique_name = f"{base_name}_{uuid.uuid4().hex[:8]}{extension}"
 
-                        # Сохраняем файл
                         print(unique_name)
                         file_path = os.path.join(file_dir, unique_name)
                         with open(file_path, 'wb') as f:
@@ -506,7 +923,6 @@ class DialogBridge(QObject):
                 else:
                     print(f"Пропущен файл '{file_name}': отсутствуют данные")
 
-            # Добавляем список имен файлов в данные
             data['fileNames'] = saved_file_names
             self.formDataSubmitted.emit(data)
 
@@ -523,14 +939,12 @@ class DialogWindow(QMainWindow):
         self.resize(550, 950)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
-        # Центральный виджет и компоновка
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(5, 5, 5, 5)
         layout.setSpacing(5)
 
-        # Создаем форму
         self.form = QWebEngineView()
         self.form.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -545,7 +959,7 @@ class DialogWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка", "Не удалось загрузить шаблон ввода")
             return
 
-        self.form.setHtml(html_template, QUrl("qrc:/"))
+        self.form.setHtml(html_template, QUrl.fromLocalFile(str(resources_dir)))
 
     def read_file(self, filename):
         """Читает файл из директории ресурсов"""
@@ -566,7 +980,6 @@ class DialogWindow(QMainWindow):
 
 
 if __name__ == "__main__":
-    # Создаем менеджер данных
     data_manager = DataManager(data_dir)
 
     app = QApplication(sys.argv)

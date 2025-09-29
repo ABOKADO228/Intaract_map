@@ -1,32 +1,138 @@
 [
     {
-        "lat": 59.925110310351776,
-        "lng": 30.308944273238716,
-        "name": "nh",
-        "deep": "b",
-        "filters": "bn",
-        "debit": "h",
-        "comments": "b",
+        "lat": 59.89207204501527,
+        "lng": 30.309974826377346,
+        "name": "g",
+        "deep": "g",
+        "filters": "g",
+        "debit": "g",
+        "comments": "g",
         "color": "#4361ee",
-        "fileNames": [
-            "dataGen_1e82a286.py"
-        ],
-        "fileName": "dataGen_1e82a286.py",
-        "id": "81c41219-ba5e-46f7-b517-a1afb0d71507"
+        "fileNames": [],
+        "fileName": "",
+        "id": "13ea1d87-7cfa-4f4a-9a68-a0fbd6b05f32"
     },
     {
-        "lat": 59.89723644123189,
-        "lng": 30.332303477714593,
+        "lat": 59.89740857394582,
+        "lng": 30.24608053178155,
+        "name": "g",
+        "deep": "g",
+        "filters": "g",
+        "debit": "g",
+        "comments": "g",
+        "color": "#4361ee",
+        "fileNames": [],
+        "fileName": "",
+        "id": "1a21fa1d-c9f1-454b-9307-0d59e1860075"
+    },
+    {
+        "lat": 59.91238070578922,
+        "lng": 30.31478407435768,
+        "name": "g",
+        "deep": "g",
+        "filters": "g",
+        "debit": "g",
+        "comments": "g",
+        "color": "#4361ee",
+        "fileNames": [],
+        "fileName": "",
+        "id": "852134db-66a8-4a46-be25-61c2ef92c91b"
+    },
+    {
+        "lat": 59.88828431084497,
+        "lng": 30.343639562239638,
+        "name": "g",
+        "deep": "g",
+        "filters": "g",
+        "debit": "g",
+        "comments": "g",
+        "color": "#4361ee",
+        "fileNames": [],
+        "fileName": "",
+        "id": "fc6ff956-b1fc-49e0-b424-6bc00c7bc817"
+    },
+    {
+        "lat": 59.92063830295474,
+        "lng": 30.37558670953755,
         "name": "a",
         "deep": "a",
         "filters": "a",
         "debit": "a",
         "comments": "a",
         "color": "#4361ee",
+        "fileNames": [],
+        "fileName": "",
+        "id": "a344468f-fd08-4db8-990e-2e1d14dfad82"
+    },
+    {
+        "lat": 59.899928001720944,
+        "lng": 30.331820247526686,
+        "name": "Оффлайн точка",
+        "deep": "а",
+        "filters": "а",
+        "debit": "а",
+        "comments": "а",
+        "color": "#4361ee",
         "fileNames": [
-            "Карта скважин_d169283c.py"
+            "Текстовый документ_305355b4.txt",
+            "Документ Microsoft Word_f920aa54.docx",
+            "FileZilla_3.69.3_win64_sponsored2-setup_9e12c4d2.exe"
         ],
-        "fileName": "Карта скважин_d169283c.py",
-        "id": "6e8baff5-b7b5-49fe-b2a7-d4d17a893b26"
+        "fileName": "Текстовый документ_305355b4.txt",
+        "id": "6cfdcb59-eca5-4a12-8391-9c046f324b9b"
+    },
+    {
+        "lat": 59.34214260351472,
+        "lng": 36.0887198635017,
+        "name": "ибиня",
+        "deep": "1",
+        "filters": "1",
+        "debit": "1",
+        "comments": "1",
+        "color": "#ffa502",
+        "fileNames": [],
+        "fileName": "",
+        "id": "ecb152e8-d7e3-40ec-a98b-cdc8950118eb"
+    },
+    {
+        "lat": 59.893793599626974,
+        "lng": 30.273905466524887,
+        "name": "в",
+        "deep": "в",
+        "filters": "в",
+        "debit": "в",
+        "comments": "в",
+        "color": "#2ed573",
+        "fileNames": [
+            "create_offline_assets_2624bb2e.py"
+        ],
+        "fileName": "create_offline_assets_2624bb2e.py",
+        "id": "a821a074-f1bd-4507-957f-62b94bc968f9"
+    },
+    {
+        "lat": 59.93886655332978,
+        "lng": 30.34329604452676,
+        "name": "в",
+        "deep": "в",
+        "filters": "в",
+        "debit": "в",
+        "comments": "в",
+        "color": "#ffa502",
+        "fileNames": [],
+        "fileName": "",
+        "id": "8fb1f0fc-6294-46dd-bf3a-104f3e7b1bb2"
+    },
+    {
+        "lat": 59.90360475759402,
+        "lng": 30.390357971191424,
+        "name": "в",
+        "deep": "в",
+        "filters": "в",
+        "debit": "в",
+        "comments": "в",
+        "color": "#ffa502",
+        "fileNames": [],
+        "fileName": "",
+        "id": "eb1f654b-77e0-48e9-b26c-f5c8d3d16d0d"
     }
 ]
