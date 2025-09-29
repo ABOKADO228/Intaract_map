@@ -103,7 +103,6 @@ class TileManager:
                 }
         except sqlite3.OperationalError as e:
             print(f"Ошибка загрузки tilesets: {e}")
-            # Если таблицы не существует, создаем ее заново
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS tilesets (
                     name TEXT PRIMARY KEY,
@@ -123,12 +122,10 @@ class TileManager:
             conn = sqlite3.connect(self.tiles_db)
             cursor = conn.cursor()
 
-            # Проверяем существование столбца access_count
             cursor.execute("PRAGMA table_info(tiles)")
             columns = [column[1] for column in cursor.fetchall()]
 
             if 'access_count' in columns:
-                # Получаем самые популярные тайлы
                 cursor.execute('''
                     SELECT url, filename FROM tiles 
                     WHERE access_count > 0 
@@ -162,7 +159,6 @@ class TileManager:
             conn = sqlite3.connect(self.tiles_db)
             cursor = conn.cursor()
 
-            # Проверяем существование столбца access_count
             cursor.execute("PRAGMA table_info(tiles)")
             columns = [column[1] for column in cursor.fetchall()]
 
@@ -173,7 +169,6 @@ class TileManager:
                     WHERE url = ?
                 ''', (self.get_current_timestamp(), url))
             else:
-                # Если столбцы не существуют, просто обновляем без них
                 print("Столбцы access_count или last_access не существуют")
 
             conn.commit()
@@ -189,7 +184,7 @@ class TileManager:
             z=zoom,
             x=x,
             y=y,
-            r=''  # CartoDB использует {r} для ретина-дисплеев, но мы используем без него
+            r=''
         )
         return url
 
@@ -198,19 +193,15 @@ class TileManager:
         try:
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
-                # Создаем хеш имени файла из URL
                 filename = hashlib.md5(url.encode()).hexdigest() + ".png"
                 filepath = self.tiles_dir / filename
 
-                # Сохраняем файл
                 with open(filepath, 'wb') as f:
                     f.write(response.content)
 
-                # Сохраняем в базу данных
                 conn = sqlite3.connect(self.tiles_db)
                 cursor = conn.cursor()
 
-                # Проверяем существование столбцов
                 cursor.execute("PRAGMA table_info(tiles)")
                 columns = [column[1] for column in cursor.fetchall()]
 
@@ -258,12 +249,10 @@ class TileManager:
 
     def get_tile(self, url):
         """Получает тайл из кэша или возвращает None"""
-        # Сначала проверяем кэш в памяти
         with self._cache_lock:
             if url in self._tile_cache:
                 return self._tile_cache[url]
 
-        # Затем проверяем базу данных и файловую систему
         conn = sqlite3.connect(self.tiles_db)
         cursor = conn.cursor()
 
@@ -278,10 +267,8 @@ class TileManager:
                     with open(filepath, 'rb') as f:
                         tile_data = f.read()
 
-                        # Обновляем счетчик обращений
                         self.update_access_count(url)
 
-                        # Сохраняем в кэш памяти если есть место
                         with self._cache_lock:
                             if len(self._tile_cache) < self._max_memory_cache:
                                 self._tile_cache[url] = tile_data
@@ -325,7 +312,6 @@ class TileManager:
         min_lat, min_lon, max_lat, max_lon = bounds
         tiles_downloaded = 0
 
-        # Собираем все URL сначала
         all_urls = []
         for zoom in zoom_levels:
             min_tile_x = self.lon_to_tile_x(min_lon, zoom)
@@ -343,7 +329,6 @@ class TileManager:
         total_tiles = len(all_urls)
         print(f"Всего тайлов CartoDB Voyager для загрузки: {total_tiles}")
 
-        # Загружаем пакетами
         batch_size = 50
         for i in range(0, len(all_urls), batch_size):
             if thread and not thread._is_running:
@@ -354,14 +339,11 @@ class TileManager:
             downloaded_in_batch = self.download_tile_batch(batch_urls)
             tiles_downloaded += downloaded_in_batch
 
-            # Отправляем прогресс
             if progress_callback:
                 progress_callback.emit(i + len(batch_urls), total_tiles)
 
-            # Небольшая задержка для избежания блокировки
             time.sleep(0.1)
 
-        # Сохраняем информацию о тайлсете
         if tiles_downloaded > 0:
             conn = sqlite3.connect(self.tiles_db)
             cursor = conn.cursor()
@@ -376,6 +358,10 @@ class TileManager:
 
         return tiles_downloaded
 
+    def download_visible_area(self, bounds, zoom_levels, name, progress_callback=None, thread=None):
+        """Скачивает тайлы только для видимой области на выбранных zoom уровнях"""
+        return self.download_area(bounds, zoom_levels, name, progress_callback, thread)
+
     def estimate_download_size(self, bounds, zoom_levels):
         """Оценивает размер загрузки в МБ для CartoDB Voyager"""
         total_tiles = 0
@@ -387,9 +373,12 @@ class TileManager:
 
             total_tiles += (max_tile_x - min_tile_x + 1) * (max_tile_y - min_tile_y + 1)
 
-        # Средний размер тайла CartoDB Voyager ~20KB
         estimated_size_mb = (total_tiles * 20) / 1024
         return round(estimated_size_mb, 1)
+
+    def estimate_visible_area_size(self, bounds, zoom):
+        """Оценивает размер загрузки для видимой области (для обратной совместимости)"""
+        return self.estimate_download_size(bounds, [zoom])
 
     @staticmethod
     def lon_to_tile_x(lon, zoom):
@@ -411,18 +400,15 @@ class TileManager:
         cursor.execute("SELECT COUNT(*) FROM tilesets")
         total_tilesets = cursor.fetchone()[0]
 
-        # Получаем размер базы тайлов
         total_size = 0
         for file_path in self.tiles_dir.glob("*.png"):
             total_size += file_path.stat().st_size
 
-        # Проверяем существование столбца access_count
         cursor.execute("PRAGMA table_info(tiles)")
         columns = [column[1] for column in cursor.fetchall()]
 
         popular_tiles = []
         if 'access_count' in columns:
-            # Самые популярные тайлы
             cursor.execute('''
                 SELECT url, access_count FROM tiles 
                 WHERE access_count > 0 
@@ -451,13 +437,11 @@ class TileManager:
         conn = sqlite3.connect(self.tiles_db)
         cursor = conn.cursor()
 
-        # Удаляем записи из базы данных
         cursor.execute("DELETE FROM tiles")
         cursor.execute("DELETE FROM tilesets")
         conn.commit()
         conn.close()
 
-        # Удаляем файлы тайлов
         for file_path in self.tiles_dir.glob("*.png"):
             try:
                 file_path.unlink()

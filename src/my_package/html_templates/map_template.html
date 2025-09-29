@@ -522,7 +522,7 @@
     <div id="web-content">
         <div id="map">
             <div id="offline-status" class="offline-status offline">
-                ○ Офлайн режим
+                ○ CartoDB Voyager - Офлайн режим
             </div>
             <div class="mode-controls">
                 <button class="mode-btn offline" onclick="switchToOfflineLayer()">
@@ -609,7 +609,7 @@
     <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
     <script>
         // Инициализация карты
-        var map = L.map('map').setView([59.93, 30.34], 12);
+        var map = L.map('map', {minZoom: 0, maxZoom: 18}).setView([59.93, 30.34], 12);
         var markers = L.layerGroup().addTo(map);
         var selectedMarkerIds = [];
         var markerData = [];
@@ -630,8 +630,7 @@
                 options: {
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
                     subdomains: 'abcd',
-                    maxZoom: 20,
-                    minZoom: 0
+                    minZoom: 0, maxZoom: 18
                 }
             }
         };
@@ -720,6 +719,41 @@
             var subdomain = 'abcd'[Math.abs(x + y) % 4];
             return `https://${subdomain}.basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png`;
         }
+
+        // Функция для получения текущих границ карты
+        function getCurrentBounds() {
+            var bounds = map.getBounds();
+            return {
+                north: bounds.getNorth(),
+                south: bounds.getSouth(),
+                east: bounds.getEast(),
+                west: bounds.getWest()
+            };
+        }
+
+        // Функция для получения текущего zoom уровня
+        function getCurrentZoom() {
+            return map.getZoom();
+        }
+
+        // Отслеживание изменений карты для обновления границ
+        map.on('moveend', function() {
+            updateMapBounds();
+        });
+
+        map.on('zoomend', function() {
+            updateMapBounds();
+        });
+
+        function updateMapBounds() {
+            var bounds = getCurrentBounds();
+            var zoom = getCurrentZoom();
+            // Можно отправить данные обратно в Python при необходимости
+            console.log("Границы обновлены:", bounds, "Zoom:", zoom);
+        }
+
+        // Инициализация начальных границ
+        updateMapBounds();
 
         // Инициализация WebChannel
         if (typeof qt !== 'undefined') {
