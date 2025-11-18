@@ -14,6 +14,24 @@ var connectivityState = {
     lastChecked: 0
 };
 
+function getTileFromBridge(url) {
+    try {
+        if (!window.bridge || typeof window.bridge.getTile !== 'function') {
+            return Promise.resolve('');
+        }
+
+        var result = window.bridge.getTile(url);
+        if (result && typeof result.then === 'function') {
+            return result;
+        }
+
+        return Promise.resolve(result);
+    } catch (error) {
+        console.error('Ошибка обращения к bridge.getTile:', error);
+        return Promise.resolve('');
+    }
+}
+
 // CartoDB Voyager конфигурация
 var cartoDBVoyager = {
 online: {
@@ -28,10 +46,10 @@ online: {
 
 // Оптимизированный офлайн-слой
 var OfflineTileLayer = L.TileLayer.extend({
-initialize: function(options) {
-    L.TileLayer.prototype.initialize.call(this, '', options);
-    this._tileCache = {};
-},
+    initialize: function(options) {
+        L.TileLayer.prototype.initialize.call(this, '', options);
+        this._tileCache = {};
+    },
 
 createTile: function (coords, done) {
     var tile = L.DomUtil.create('canvas', 'leaflet-tile');
@@ -55,27 +73,29 @@ createTile: function (coords, done) {
 
     // Запрашиваем тайл через bridge
     if (window.bridge) {
-        window.bridge.getTile(url).then(function(dataUrl) {
-            if (dataUrl && dataUrl.startsWith('data:')) {
-                // Сохраняем в кэш
-                this._tileCache[url] = dataUrl;
+        getTileFromBridge(url)
+            .then(function(dataUrl) {
+                if (dataUrl && dataUrl.startsWith('data:')) {
+                    // Сохраняем в кэш
+                    this._tileCache[url] = dataUrl;
 
-                var img = new Image();
-                img.onload = function() {
-                    ctx.drawImage(img, 0, 0);
-                    done(null, tile);
-                };
-                img.onerror = function() {
+                    var img = new Image();
+                    img.onload = function() {
+                        ctx.drawImage(img, 0, 0);
+                        done(null, tile);
+                    };
+                    img.onerror = function() {
+                        showOfflineTile(tile, done);
+                    };
+                    img.src = dataUrl;
+                } else {
                     showOfflineTile(tile, done);
-                };
-                img.src = dataUrl;
-            } else {
+                }
+            }.bind(this))
+            .catch(function(error) {
+                console.error('Ошибка при запросе тайла:', error);
                 showOfflineTile(tile, done);
-            }
-        }.bind(this)).catch(function(error) {
-            console.error('Ошибка при запросе тайла:', error);
-            showOfflineTile(tile, done);
-        });
+            });
     } else {
         showOfflineTile(tile, done);
     }
