@@ -9,6 +9,10 @@ var colorChangeQueue = [];
 var colorChangeTimer = null;
 var currentLayer = null;
 var currentMode = 'offline';
+var connectivityState = {
+    isOnline: false,
+    lastChecked: 0
+};
 
 // CartoDB Voyager конфигурация
 var cartoDBVoyager = {
@@ -161,13 +165,69 @@ switchToOfflineLayer();
 // Инициализируем точки
 initPoints();
 
-// Обновляем статус
-setInterval(updateOnlineStatus, 1000);
+// Запускаем мониторинг подключений
+startConnectivityMonitoring();
+}
+
+function startConnectivityMonitoring() {
+// Первичная проверка
+handleConnectivityChange();
+
+// Реакция на системные события браузера
+window.addEventListener('online', handleConnectivityChange);
+window.addEventListener('offline', handleConnectivityChange);
+
+// Периодические проверки доступности тайлов (каждые 15 секунд)
+setInterval(handleConnectivityChange, 15000);
+}
+
+function handleConnectivityChange() {
+checkInternetConnectivity().then(function(isOnline) {
+    connectivityState.isOnline = isOnline;
+    connectivityState.lastChecked = Date.now();
+
+    if (isOnline) {
+        switchToOnlineLayer();
+    } else {
+        switchToOfflineLayer();
+    }
+});
+}
+
+function checkInternetConnectivity() {
+if (!navigator.onLine) {
+    return Promise.resolve(false);
+}
+
+var controller = new AbortController();
+var timeoutId = setTimeout(function() {
+    controller.abort();
+}, 4000);
+
+// Пробуем получить заголовки базового тайла
+var testUrl = cartoDBVoyager.online.url
+    .replace('{s}', 'a')
+    .replace('{z}', '0')
+    .replace('{x}', '0')
+    .replace('{y}', '0')
+    .replace('{r}', '');
+
+return fetch(testUrl, { method: 'HEAD', signal: controller.signal })
+    .then(function(response) {
+        clearTimeout(timeoutId);
+        return response.ok;
+    })
+    .catch(function(error) {
+        clearTimeout(timeoutId);
+        console.warn('Не удалось проверить интернет-соединение:', error);
+        return false;
+    });
 }
 
 function switchToOfflineLayer() {
 if (currentMode === 'offline') {
     console.log("Уже в офлайн-режиме");
+    updateOnlineStatus();
     return;
 }
 
@@ -205,12 +265,14 @@ console.log("Успешно переключен в офлайн-режим");
 function switchToOnlineLayer() {
 if (currentMode === 'online') {
     console.log("Уже в онлайн-режиме");
+    updateOnlineStatus();
     return;
 }
 
-// Проверяем доступность интернета
-if (!navigator.onLine) {
-    alert("Нет подключения к интернету. Невозможно переключиться в онлайн-режим.");
+// Проверяем доступность интернета на основе последней проверки
+if (!connectivityState.isOnline) {
+    console.warn("Отсутствует интернет-соединение для онлайн-режима");
+    updateOnlineStatus();
     return;
 }
 
@@ -247,7 +309,10 @@ if (currentMode === 'online') {
     statusElement.innerHTML = '● CartoDB Voyager - Онлайн режим';
     statusElement.className = 'offline-status online';
 } else {
-    statusElement.innerHTML = '○ CartoDB Voyager - Офлайн режим';
+    var offlineReason = connectivityState.lastChecked === 0
+        ? 'Проверка соединения...'
+        : (connectivityState.isOnline ? 'Принудительно выбран офлайн режим' : 'Нет подключения к интернету');
+    statusElement.innerHTML = '○ CartoDB Voyager - Офлайн режим (' + offlineReason + ')';
     statusElement.className = 'offline-status offline';
 }
 }
