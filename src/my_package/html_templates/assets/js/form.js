@@ -80,7 +80,7 @@ function updateFileList() {
         fileItem.innerHTML = `
             <span class="file-name">${file.fileName}</span>
             <button type="button" class="remove-file" data-index="${index}">
-                <i class="fas fa-times"></i>
+                ✕
             </button>
         `;
         fileList.appendChild(fileItem);

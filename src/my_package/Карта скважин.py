@@ -1225,7 +1225,7 @@ class DialogWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка", "Не удалось загрузить шаблон ввода")
             return
 
-        self.form.setHtml(html_template, QUrl.fromLocalFile(str(resources_dir)))
+        self.form.setHtml(html_template, QUrl.fromLocalFile(str(resources_dir) + "/"))
 
     def read_file(self, filename):
         """Читает файл из директории ресурсов"""
