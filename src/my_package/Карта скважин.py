@@ -1,5 +1,161 @@
 import sys
 import os
+import logging
+
+
+def set_qt_plugin_path():
+    if getattr(sys, 'frozen', False):
+        # Если приложение собрано в exe
+        base_path = sys._MEIPASS
+        # Устанавливаем путь к плагинам Qt
+        qt_plugin_path = os.path.join(base_path, 'qt5_plugins').replace('\\', '/')
+        os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = qt_plugin_path
+
+        # Указываем путь к QtWebEngineProcess
+        webengine_process_path = os.path.join(base_path, 'bin', 'QtWebEngineProcess.exe').replace('\\', '/')
+        os.environ['QTWEBENGINEPROCESS_PATH'] = webengine_process_path
+
+
+def setup_qt_paths():
+    """Настройка путей для Qt в собранном приложении"""
+    if getattr(sys, 'frozen', False):
+        # Если приложение собрано в exe
+        base_path = sys._MEIPASS
+
+        # Добавляем пути к Qt в PATH
+        qt_paths = [
+            os.path.join(base_path, 'bin'),
+            os.path.join(base_path, 'plugins'),
+            os.path.join(base_path, 'resources'),
+        ]
+
+        for path in qt_paths:
+            if os.path.exists(path) and path not in os.environ['PATH']:
+                os.environ['PATH'] = path + os.pathsep + os.environ['PATH']
+
+        # Указываем путь к QtWebEngineProcess
+        webengine_process = os.path.join(base_path, 'QtWebEngineProcess.exe')
+        if os.path.exists(webengine_process):
+            os.environ['QTWEBENGINEPROCESS_PATH'] = webengine_process
+
+        # Указываем путь к ресурсам
+        os.environ['QTWEBENGINE_RESOURCES_PATH'] = os.path.join(base_path, 'resources')
+
+
+# Вызываем ДО импорта PyQt
+setup_qt_paths()
+
+# Вызовите эту функцию до создания QApplication
+
+
+def debug_qt_paths():
+    print("=== QT DEBUG INFO ===")
+    print("Frozen:", getattr(sys, 'frozen', False))
+
+    if getattr(sys, 'frozen', False):
+        base_path = sys._MEIPASS
+        print("MEIPASS:", base_path)
+
+        # Проверяем критические файлы
+        files_to_check = [
+            'QtWebEngineProcess.exe',
+            'resources/icudtl.dat',
+            'resources/qtwebengine_resources.pak'
+        ]
+
+        for file in files_to_check:
+            full_path = os.path.join(base_path, file)
+            exists = os.path.exists(full_path)
+            print(f"✓ {file}" if exists else f"✗ {file} - MISSING!")
+
+    print("PATH:", os.environ.get('PATH', ''))
+    print("QTWEBENGINEPROCESS_PATH:", os.environ.get('QTWEBENGINEPROCESS_PATH', 'Not set'))
+
+
+def fix_qt_dll():
+    # Добавляем пути к DLL PyQt5 в PATH
+    venv_path = os.path.dirname(sys.executable)
+    site_packages = os.path.join(venv_path, "..", "Lib", "site-packages", "PyQt5", "Qt5", "bin")
+
+    if os.path.exists(site_packages):
+        os.environ['PATH'] = site_packages + os.pathsep + os.environ['PATH']
+        print(f"Добавлен путь: {site_packages}")
+
+    # Проверяем доступность DLL
+    try:
+        from PyQt5 import QtCore
+        print("✓ PyQt5 загружен успешно!")
+        return True
+    except ImportError as e:
+        print(f"✗ Ошибка: {e}")
+        return False
+
+
+fix_qt_dll()
+debug_qt_paths()
+set_qt_plugin_path()
+
+def setup_qt_webengine():
+    """Настройка путей для Qt WebEngine в виртуальном окружении"""
+
+    # Настройка логирования для отладки
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    if getattr(sys, 'frozen', False):
+        # Режим exe - используем MEIPASS
+        base_path = sys._MEIPASS
+        logger.info(f"Running in frozen mode, MEIPASS: {base_path}")
+    else:
+        # Режим разработки - используем пути виртуального окружения
+        try:
+            from PyQt5.QtCore import QLibraryInfo
+            base_path = QLibraryInfo.location(QLibraryInfo.PrefixPath)
+            logger.info(f"Running in dev mode, Qt path: {base_path}")
+        except ImportError:
+            logger.error("PyQt5 not found in virtual environment!")
+            return False
+
+    # Проверяем и настраиваем критические пути
+    webengine_process = os.path.join(base_path, 'bin', 'QtWebEngineProcess.exe')
+    resources_path = os.path.join(base_path, 'resources')
+    translations_path = os.path.join(base_path, 'translations')
+
+    # Проверяем существование файлов
+    if os.path.exists(webengine_process):
+        os.environ['QTWEBENGINEPROCESS_PATH'] = webengine_process
+        logger.info(f"Set QTWEBENGINEPROCESS_PATH: {webengine_process}")
+    else:
+        logger.warning(f"QtWebEngineProcess.exe not found at: {webengine_process}")
+
+    if os.path.exists(resources_path):
+        os.environ['QTWEBENGINE_RESOURCES_PATH'] = resources_path
+        logger.info(f"Set QTWEBENGINE_RESOURCES_PATH: {resources_path}")
+
+    # Добавляем bin в PATH
+    bin_path = os.path.join(base_path, 'bin')
+    if os.path.exists(bin_path) and bin_path not in os.environ['PATH']:
+        os.environ['PATH'] = bin_path + os.pathsep + os.environ['PATH']
+        logger.info(f"Added to PATH: {bin_path}")
+
+    return True
+
+# Инициализация ДО импорта PyQt
+if not setup_qt_webengine():
+    print("Failed to setup Qt WebEngine paths!")
+    sys.exit(1)
+
+# Теперь безопасно импортируем PyQt
+try:
+    from PyQt5.QtWidgets import QApplication
+    from PyQt5.QtWebEngineWidgets import QWebEngineView
+    from PyQt5.QtCore import QUrl
+except ImportError as e:
+    print(f"Failed to import PyQt5: {e}")
+    print("Make sure PyQt5 and PyQtWebEngine are installed in your virtual environment!")
+    sys.exit(1)
+
+
 import base64
 import binascii
 import json
