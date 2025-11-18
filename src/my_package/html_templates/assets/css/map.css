@@ -1,0 +1,511 @@
+#web-content {
+            display: flex;
+            width: 100%;
+            height: 97vh;
+            justify-self: center;
+            align-self: center;
+        }
+        #map {
+            width: 75%;
+            height: 100%;
+        }
+        #side-panel {
+            width: 25%;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            background-color: #f5f5f5;
+        }
+        .nav-tree-container {
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .point-info-container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            background-color: #fff;
+            flex-grow: 1;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .color-controls {
+            margin-top: 15px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .color-picker {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .color-picker label {
+            margin-right: 10px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .color-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .color-option {
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: transform 0.2s;
+        }
+        .color-option:hover {
+            transform: scale(1.1);
+        }
+        .color-option.selected {
+            border-color: #333;
+            transform: scale(1.1);
+        }
+        #nav-tree {
+            list-style-type: none;
+            padding: 0;
+            margin: 10px 0 0 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        #nav-tree li {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            margin-bottom: 5px;
+            background-color: #f9f9f9;
+            border-radius: 6px;
+            border-left: 3px solid #4361ee;
+            transition: all 0.2s;
+        }
+        #nav-tree li:hover {
+            background-color: #edf2ff;
+        }
+        #nav-tree li.selected {
+            background-color: #e6f0ff;
+            border-left: 3px solid #2d4fc7;
+        }
+        .marker-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 1px solid #ccc;
+            flex-shrink: 0;
+        }
+        .marker-info {
+            flex-grow: 1;
+            cursor: pointer;
+            font-size: 14px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .delete-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            flex-shrink: 0;
+            margin-left: 5px;
+        }
+        .delete-btn:hover {
+            background: #ff3742;
+        }
+        .empty {
+            color: #777;
+            font-style: italic;
+            text-align: center;
+            padding: 10px;
+        }
+        h3 {
+            margin-bottom: 12px;
+            color: #333;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+        }
+        h3 i {
+            margin-right: 8px;
+            color: #4361ee;
+        }
+        #point-info {
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        #point-info p {
+            margin: 8px 0;
+            line-height: 1.4;
+        }
+        #apply-color {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: #4361ee;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            transition: background 0.2s;
+        }
+        #apply-color:hover {
+            background: #3a56d4;
+        }
+
+        /* Стили для поиска */
+        .search-container {
+            margin-bottom: 15px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .search-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        .search-btn {
+            width: 100%;
+            padding: 8px 12px;
+            background: #4361ee;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .search-btn:hover {
+            background: #3a56d4;
+        }
+        .search-results {
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .search-result-item {
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .search-result-item:hover {
+            background-color: #f0f0f0;
+        }
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+
+        /* Стили для управления видимостью */
+        .visibility-controls {
+            margin-bottom: 15px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .visibility-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .visibility-btn {
+            padding: 8px 12px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .visibility-btn i {
+            margin-right: 5px;
+        }
+        .visibility-btn:hover {
+            background: #5a6268;
+        }
+        .visibility-btn.hide {
+            background: #ff4757;
+        }
+        .visibility-btn.hide:hover {
+            background: #ff3742;
+        }
+        .visibility-btn.show {
+            background: #2ed573;
+        }
+        .visibility-btn.show:hover {
+            background: #27c466;
+        }
+
+        /* Стили для группировки */
+        .group-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+        .group-title {
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+        }
+        .group-title i {
+            margin-right: 8px;
+            transition: transform 0.3s;
+        }
+        .group-toggle {
+            color: #777;
+            font-size: 12px;
+        }
+        .group-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .group-content.expanded {
+            max-height: 500px;
+        }
+
+        /* Стили для выбранных точек */
+        .selected-points-container {
+            margin-bottom: 15px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .selected-points-list {
+            max-height: 150px;
+            overflow-y: auto;
+            margin: 10px 0;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            padding: 8px;
+        }
+        .selected-point-item {
+            display: flex;
+            align-items: center;
+            padding: 6px;
+            margin-bottom: 5px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border-left: 3px solid #4361ee;
+        }
+        .selected-point-item:last-child {
+            margin-bottom: 0;
+        }
+        .selected-point-name {
+            flex-grow: 1;
+            font-size: 14px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .remove-selected-btn {
+            background: none;
+            border: none;
+            color: #ff4757;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 5px;
+        }
+        .remove-selected-btn:hover {
+            color: #ff3742;
+        }
+        .selection-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .selection-btn {
+            padding: 8px 12px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .selection-btn:hover {
+            background: #5a6268;
+        }
+        .selection-btn.select {
+            background: #4361ee;
+        }
+        .selection-btn.select:hover {
+            background: #3a56d4;
+        }
+        .selection-btn.deselect {
+            background: #ff4757;
+        }
+        .selection-btn.deselect:hover {
+            background: #ff3742;
+        }
+
+        /* Иконки */
+        .icon-btn {
+            background: none;
+            border: none;
+            color: #6c757d;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px;
+            border-radius: 4px;
+        }
+        .icon-btn:hover {
+            color: #4361ee;
+            background-color: #f0f0f0;
+        }
+
+        /* Стили для ссылки на файл */
+        .file-link {
+            color: #4361ee;
+            text-decoration: underline;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        .file-link:hover {
+            color: #3a56d4;
+        }
+        .file-info {
+            margin-top: 5px;
+            font-size: 13px;
+            color: #666;
+        }
+
+        /* Новые стили для множественных файлов */
+        .files-list {
+            margin-top: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            padding: 8px;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px;
+            margin-bottom: 5px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border-left: 3px solid #4361ee;
+        }
+        .file-item:last-child {
+            margin-bottom: 0;
+        }
+        .file-name {
+            flex-grow: 1;
+            font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .file-count {
+            background-color: #4361ee;
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        /* Новые стили для офлайн-статуса */
+        .offline-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            z-index: 1000;
+            border: 2px solid #ddd;
+            font-weight: bold;
+        }
+        .offline-status.online {
+            color: #2ed573;
+            border-color: #2ed573;
+            background: rgba(46, 213, 115, 0.1);
+        }
+        .offline-status.offline {
+            color: #ff4757;
+            border-color: #ff4757;
+            background: rgba(255, 71, 87, 0.1);
+        }
+
+        /* Стили для управления режимами */
+        .mode-controls {
+            position: absolute;
+            top: 60px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px;
+            border-radius: 6px;
+            z-index: 1000;
+            border: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .mode-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .mode-btn.offline {
+            background: #4361ee;
+            color: white;
+        }
+        .mode-btn.online {
+            background: #2ed573;
+            color: white;
+        }
+        .mode-btn:hover {
+            opacity: 0.9;
+        }

@@ -159,6 +159,7 @@ except ImportError as e:
 import base64
 import binascii
 import json
+import sqlite3
 from pathlib import Path
 from PyQt5.QtCore import QObject, pyqtSlot, QUrl, Qt, pyqtSignal, QThread
 from PyQt5.QtWebChannel import QWebChannel
@@ -231,34 +232,134 @@ class DataManager():
     def __init__(self, data_path):
         self.data_path = data_path
         self.data_file = os.path.join(data_path, "data.json")
+        self.db_path = os.path.join(data_path, "data.db")
         self.current_data = []
-        self.ensure_data_file()
+        self.ensure_database()
         self.load_data()
 
-    def ensure_data_file(self):
-        """Создает файл данных и директорию, если они не существуют"""
+    def ensure_database(self):
+        """Создает базу данных и переносит старые данные из JSON при необходимости"""
         os.makedirs(self.data_path, exist_ok=True)
-        if not os.path.exists(self.data_file):
-            self.save_data()
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS points (
+                id TEXT PRIMARY KEY,
+                lat REAL,
+                lng REAL,
+                name TEXT,
+                deep TEXT,
+                filters TEXT,
+                debit TEXT,
+                comments TEXT,
+                color TEXT,
+                fileName TEXT,
+                fileNames TEXT
+            )
+        ''')
+
+        conn.commit()
+
+        # Мигрируем данные из старого JSON, если база пуста
+        cursor.execute("SELECT COUNT(*) FROM points")
+        has_records = cursor.fetchone()[0] > 0
+
+        if not has_records and os.path.exists(self.data_file):
+            try:
+                with open(self.data_file, 'r', encoding='utf-8') as file:
+                    legacy_data = json.load(file)
+
+                for point in legacy_data:
+                    self._insert_point(cursor, point)
+
+                conn.commit()
+                print("Данные из data.json перенесены в SQLite")
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                print(f"Не удалось мигрировать данные из JSON: {e}")
+
+        conn.close()
+
+    def _insert_point(self, cursor, point_data):
+        """Добавляет или обновляет точку в базе данных"""
+        cursor.execute(
+            '''INSERT OR REPLACE INTO points (
+                id, lat, lng, name, deep, filters, debit, comments, color, fileName, fileNames
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            (
+                point_data.get('id'),
+                point_data.get('lat'),
+                point_data.get('lng'),
+                point_data.get('name'),
+                point_data.get('deep'),
+                point_data.get('filters'),
+                point_data.get('debit'),
+                point_data.get('comments'),
+                point_data.get('color', '#4361ee'),
+                point_data.get('fileName', ''),
+                json.dumps(point_data.get('fileNames', []), ensure_ascii=False)
+            )
+        )
 
     def load_data(self):
-        """Загружает данные из файла"""
-        try:
-            with open(self.data_file, 'r', encoding='utf-8') as file:
-                self.current_data = json.load(file)
-        except (json.JSONDecodeError, FileNotFoundError):
-            self.current_data = []
+        """Загружает данные из базы данных"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute(
+            '''SELECT id, lat, lng, name, deep, filters, debit, comments, color, fileName, fileNames FROM points'''
+        )
+
+        self.current_data = []
+        for row in cursor.fetchall():
+            file_names = []
+            try:
+                file_names = json.loads(row[10]) if row[10] else []
+            except json.JSONDecodeError:
+                file_names = []
+
+            point = {
+                'id': row[0],
+                'lat': row[1],
+                'lng': row[2],
+                'name': row[3],
+                'deep': row[4],
+                'filters': row[5],
+                'debit': row[6],
+                'comments': row[7],
+                'color': row[8] or '#4361ee',
+                'fileName': row[9] or "",
+                'fileNames': file_names
+            }
+            self.current_data.append(point)
+
+        conn.close()
 
     def save_data(self):
-        """Сохраняет данные в файл"""
-        with open(self.data_file, "w", encoding="utf-8") as file:
-            json.dump(self.current_data, file, ensure_ascii=False, indent=4)
+        """Сохраняет текущее состояние точек в базу данных"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM points")
+        for point in self.current_data:
+            if 'id' not in point:
+                point['id'] = str(uuid.uuid4())
+            self._insert_point(cursor, point)
+
+        conn.commit()
+        conn.close()
 
     def add_point(self, point_data):
         """Добавляет точку с уникальным ID"""
         point_data['id'] = str(uuid.uuid4())
         self.current_data.append(point_data)
-        self.save_data()
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        self._insert_point(cursor, point_data)
+        conn.commit()
+        conn.close()
         return point_data['id']
 
     def remove_point(self, point_id):
@@ -291,12 +392,21 @@ class DataManager():
                     print(f"Ошибка при удалении файла: {e}")
 
         self.current_data = [p for p in self.current_data if p.get('id') != point_id]
-        self.save_data()
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM points WHERE id = ?", (point_id,))
+        conn.commit()
+        conn.close()
 
     def clear_all_points(self):
         """Удаляет все точки"""
         self.current_data = []
-        self.save_data()
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM points")
+        conn.commit()
+        conn.close()
 
     def update_points(self, points_data):
         """Обновляет все точки"""
@@ -1115,7 +1225,7 @@ class DialogWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка", "Не удалось загрузить шаблон ввода")
             return
 
-        self.form.setHtml(html_template, QUrl.fromLocalFile(str(resources_dir)))
+        self.form.setHtml(html_template, QUrl.fromLocalFile(str(resources_dir) + "/"))
 
     def read_file(self, filename):
         """Читает файл из директории ресурсов"""
