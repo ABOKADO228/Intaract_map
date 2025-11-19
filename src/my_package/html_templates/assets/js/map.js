@@ -15,13 +15,25 @@ var connectivityState = {
     lastChecked: 0
 };
 
+function setBridge(instance) {
+    if (instance) {
+        bridge = instance;
+        window.bridge = instance;
+    }
+}
+
+function getBridge() {
+    return window.bridge || bridge;
+}
+
 function getTileFromBridge(url) {
     try {
-        if (!window.bridge || typeof window.bridge.getTile !== 'function') {
+        var activeBridge = getBridge();
+        if (!activeBridge || typeof activeBridge.getTile !== 'function') {
             return Promise.resolve('');
         }
 
-        var result = window.bridge.getTile(url);
+        var result = activeBridge.getTile(url);
         if (result && typeof result.then === 'function') {
             return result;
         }
@@ -73,7 +85,7 @@ createTile: function (coords, done) {
     }
 
     // Запрашиваем тайл через bridge
-    if (window.bridge) {
+    if (getBridge()) {
         getTileFromBridge(url)
             .then(function(dataUrl) {
                 if (dataUrl && dataUrl.startsWith('data:')) {
@@ -169,8 +181,7 @@ updateMapBounds();
 
 // Инициализация WebChannel
 function bindBridge(channel) {
-    bridge = channel.objects.bridge;
-    window.bridge = bridge;
+    setBridge(channel.objects.bridge);
     console.log("WebChannel инициализирован");
     if (typeof window.onBridgeReady === 'function') {
         window.onBridgeReady();
@@ -287,8 +298,8 @@ currentMode = 'offline';
 updateOnlineStatus();
 
 // Уведомляем Python о переключении
-if (bridge) {
-    bridge.switchToOfflineMode();
+if (getBridge()) {
+    getBridge().switchToOfflineMode();
 }
 
 console.log("Успешно переключен в офлайн-режим");
@@ -326,8 +337,8 @@ currentMode = 'online';
 updateOnlineStatus();
 
 // Уведомляем Python о переключении
-if (bridge) {
-    bridge.switchToOnlineMode();
+if (getBridge()) {
+    getBridge().switchToOnlineMode();
 }
 
 console.log("Успешно переключен в онлайн-режим");
@@ -431,7 +442,10 @@ function removeSelectedPoints() {
    selectedMarkerIds.forEach(markerId => {
     const marker = markerData.find(m => m.id === markerId);
     if (marker) {
-        bridge.removePoint(marker.id);
+        var activeBridge = getBridge();
+        if (activeBridge) {
+            activeBridge.removePoint(marker.id);
+        }
     }
    });
 }
@@ -545,8 +559,9 @@ if (markerData.length === 0) {
             deleteBtn.onclick = (function(markerId) {
                 return function(e) {
                     e.stopPropagation();
-                    if (bridge) {
-                        bridge.removePoint(markerId);
+                    var activeBridge = getBridge();
+                    if (activeBridge) {
+                        activeBridge.removePoint(markerId);
                     }
                 };
             })(marker.id);
@@ -717,8 +732,9 @@ pointInfo.innerHTML = `
 }
 
 function openFile(fileName) {
-if (bridge && typeof bridge.openFileInWord === 'function') {
-    bridge.openFileInWord(fileName);
+const activeBridgeForOpen = getBridge();
+if (activeBridgeForOpen && typeof activeBridgeForOpen.openFileInWord === 'function') {
+    activeBridgeForOpen.openFileInWord(fileName);
 } else {
     console.error("Функция открытия файла недоступна");
     alert("Не удалось открыть файл. Функция недоступна.");
@@ -726,8 +742,9 @@ if (bridge && typeof bridge.openFileInWord === 'function') {
 }
 
 function openFileLocation(fileName) {
-if (bridge && typeof bridge.openFileLocation === 'function') {
-    bridge.openFileLocation(fileName);
+const activeBridgeForReveal = getBridge();
+if (activeBridgeForReveal && typeof activeBridgeForReveal.openFileLocation === 'function') {
+    activeBridgeForReveal.openFileLocation(fileName);
 } else {
     console.error("Функция открытия каталога недоступна");
     alert("Не удалось открыть расположение файла. Функция недоступна.");
@@ -851,7 +868,8 @@ updateNavTree();
 }
 
 function sendColorUpdates() {
-if (colorChangeQueue.length === 0 || !bridge) return;
+var activeBridgeForColor = getBridge();
+if (colorChangeQueue.length === 0 || !activeBridgeForColor) return;
 
 // Создаем карту последних цветов для каждого маркера
 const latestColors = {};
@@ -883,7 +901,7 @@ const dataToSend = markerData.map(marker => ({
     fileNames: marker.fileNames  // Массив файлов
 }));
 
-bridge.changeColor(JSON.stringify(dataToSend));
+activeBridgeForColor.changeColor(JSON.stringify(dataToSend));
 colorChangeQueue = [];
 }
 
@@ -907,8 +925,9 @@ if (index !== -1) {
 
 function enableClickHandler() {
 map.on('click', function(e) {
-    if (bridge) {
-        bridge.addPoint(e.latlng.lat, e.latlng.lng);
+    var activeBridge = getBridge();
+    if (activeBridge) {
+        activeBridge.addPoint(e.latlng.lat, e.latlng.lng);
     }
 });
 }

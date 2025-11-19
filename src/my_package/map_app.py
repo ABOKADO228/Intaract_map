@@ -177,7 +177,11 @@ QPushButton:pressed {
         script = """
             if (typeof qt !== 'undefined' && qt.webChannelTransport) {
                 new QWebChannel(qt.webChannelTransport, function(channel) {
-                    window.bridge = channel.objects.bridge;
+                    if (typeof window.setBridge === 'function') {
+                        window.setBridge(channel.objects.bridge);
+                    } else {
+                        window.bridge = channel.objects.bridge;
+                    }
                     if (typeof window.onBridgeReady === 'function') {
                         window.onBridgeReady();
                     }
