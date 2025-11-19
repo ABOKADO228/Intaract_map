@@ -15,6 +15,28 @@ class DataManager:
         self.ensure_database()
         self.load_data()
 
+    @staticmethod
+    def _normalize_file_name(file_name: Optional[str]) -> Optional[str]:
+        if not file_name:
+            return None
+
+        normalized = str(file_name).strip()
+        if not normalized:
+            return None
+
+        if normalized.lower() in {"null", "none", "nan"}:
+            return None
+
+        return normalized
+
+    def _clean_file_list(self, file_names: List[str]) -> List[str]:
+        cleaned: List[str] = []
+        for name in file_names or []:
+            normalized = self._normalize_file_name(name)
+            if normalized and normalized not in cleaned:
+                cleaned.append(normalized)
+        return cleaned
+
     def ensure_database(self) -> None:
         os.makedirs(self.data_path, exist_ok=True)
 
@@ -53,7 +75,7 @@ class DataManager:
         conn.close()
 
     def _insert_point(self, cursor, point_data: dict) -> None:
-        attachments = list(point_data.get("fileNames") or [])
+        attachments = self._clean_file_list(point_data.get("fileNames") or [])
         cursor.execute(
             """INSERT OR REPLACE INTO points (
                 id, lat, lng, name, deep, filters, debit, comments, color, fileName
@@ -68,7 +90,7 @@ class DataManager:
                 point_data.get("debit"),
                 point_data.get("comments"),
                 point_data.get("color", "#4361ee"),
-                point_data.get("fileName", ""),
+                self._normalize_file_name(point_data.get("fileName")) or "",
             ),
         )
 
@@ -83,7 +105,15 @@ class DataManager:
         attachments_map: Dict[str, List[str]] = {}
         cursor.execute("SELECT point_id, file_name FROM attachments")
         for point_id, file_name in cursor.fetchall():
-            attachments_map.setdefault(point_id, []).append(file_name)
+            normalized = self._normalize_file_name(file_name)
+            if not normalized:
+                continue
+
+            if point_id not in attachments_map:
+                attachments_map[point_id] = []
+
+            if normalized not in attachments_map[point_id]:
+                attachments_map[point_id].append(normalized)
         return attachments_map
 
     def load_data(self) -> None:
@@ -99,8 +129,12 @@ class DataManager:
         self.current_data = []
         for row in rows:
             file_names = attachments_map.get(row[0], [])
-            if not file_names and row[9]:
-                file_names = [row[9]]
+            fallback_file = self._normalize_file_name(row[9])
+            if not file_names and fallback_file:
+                file_names = [fallback_file]
+
+            file_names = self._clean_file_list(file_names)
+            primary_file = fallback_file or (file_names[0] if file_names else "")
 
             point = {
                 "id": row[0],
@@ -112,7 +146,7 @@ class DataManager:
                 "debit": row[6],
                 "comments": row[7],
                 "color": row[8] or "#4361ee",
-                "fileName": row[9] or "",
+                "fileName": primary_file,
                 "fileNames": file_names,
             }
             self.current_data.append(point)
@@ -128,6 +162,8 @@ class DataManager:
         for point in self.current_data:
             if "id" not in point:
                 point["id"] = str(uuid.uuid4())
+            point["fileNames"] = self._clean_file_list(point.get("fileNames", []))
+            point["fileName"] = (self._normalize_file_name(point.get("fileName")) or "")
             self._insert_point(cursor, point)
 
         conn.commit()
@@ -135,6 +171,8 @@ class DataManager:
 
     def add_point(self, point_data: dict) -> str:
         point_data["id"] = str(uuid.uuid4())
+        point_data["fileNames"] = self._clean_file_list(point_data.get("fileNames", []))
+        point_data["fileName"] = (self._normalize_file_name(point_data.get("fileName")) or "")
         self.current_data.append(point_data)
 
         conn = sqlite3.connect(self.db_path)
@@ -150,10 +188,10 @@ class DataManager:
             print(f"Точка с ID {point_id} не найдена.")
             return
 
-        file_names = point.get("fileNames", [])
+        file_names = self._clean_file_list(point.get("fileNames", []))
         if not file_names:
-            single_file = point.get("fileName")
-            if single_file and single_file not in [None, "Null"]:
+            single_file = self._normalize_file_name(point.get("fileName"))
+            if single_file:
                 file_names = [single_file]
 
         for file_name in file_names:
@@ -214,8 +252,12 @@ class DataManager:
         results: List[dict] = []
         for row in rows:
             file_names = attachments_map.get(row[0], [])
-            if not file_names and row[9]:
-                file_names = [row[9]]
+            fallback_file = self._normalize_file_name(row[9])
+            if not file_names and fallback_file:
+                file_names = [fallback_file]
+
+            file_names = self._clean_file_list(file_names)
+            primary_file = fallback_file or (file_names[0] if file_names else "")
 
             results.append(
                 {
@@ -228,7 +270,7 @@ class DataManager:
                     "debit": row[6],
                     "comments": row[7],
                     "color": row[8] or "#4361ee",
-                    "fileName": row[9] or "",
+                    "fileName": primary_file,
                     "fileNames": file_names,
                 }
             )
@@ -249,6 +291,14 @@ class DataManager:
         )
 
         for point_id, file_name in cursor.fetchall():
-            attachments.setdefault(point_id, []).append(file_name)
+            normalized = self._normalize_file_name(file_name)
+            if not normalized:
+                continue
+
+            if point_id not in attachments:
+                attachments[point_id] = []
+
+            if normalized not in attachments[point_id]:
+                attachments[point_id].append(normalized)
 
         return attachments
