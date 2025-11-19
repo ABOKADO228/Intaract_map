@@ -446,30 +446,51 @@
         }
         .file-actions {
             display: flex;
-            gap: 6px;
+            gap: 8px;
             margin-left: 8px;
         }
         .file-action {
-            border: none;
-            border-radius: 4px;
-            padding: 4px 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            padding: 6px 10px;
             font-size: 12px;
+            font-weight: 600;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: background 0.2s, transform 0.1s ease, box-shadow 0.2s;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        .file-action:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+        }
+        .file-action:active {
+            transform: translateY(0);
+            box-shadow: none;
         }
         .file-action.open-doc {
-            background: #4361ee;
+            background: linear-gradient(135deg, #4b7bec, #3867d6);
+            border-color: #2f54c2;
             color: #fff;
+        }
+        .file-action.open-doc::before {
+            content: "📄";
         }
         .file-action.open-doc:hover {
-            background: #3a56d4;
+            background: linear-gradient(135deg, #5a88f3, #3f73e2);
         }
         .file-action.open-folder {
-            background: #4c6a80;
+            background: linear-gradient(135deg, #0fb9b1, #0aa29a);
+            border-color: #0b8f88;
             color: #fff;
         }
+        .file-action.open-folder::before {
+            content: "📂";
+        }
         .file-action.open-folder:hover {
-            background: #3c5566;
+            background: linear-gradient(135deg, #19c6bd, #0fb4ad);
         }
         .file-count {
             background-color: #4361ee;

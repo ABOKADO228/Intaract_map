@@ -13,6 +13,30 @@ class Bridge(QObject):
         super().__init__(parent)
         self.parent = parent
 
+    def _resolve_file_path(self, file_name: str) -> str:
+        """Return an existing file path for the stored attachment name."""
+
+        if not file_name:
+            return ""
+
+        candidates = []
+
+        # Allow absolute paths that already exist (legacy records)
+        if os.path.isabs(file_name):
+            candidates.append(file_name)
+
+        # Support relative entries that may already include subdirectories
+        candidates.append(os.path.abspath(file_name))
+
+        # Default location for stored attachments
+        candidates.append(os.path.join(FILE_DIR, file_name))
+
+        for candidate in candidates:
+            if candidate and os.path.exists(candidate):
+                return os.path.normpath(candidate)
+
+        return ""
+
     @pyqtSlot(float, float)
     def addPoint(self, lat, lng):
         self.parent.add_point(lat, lng)
@@ -32,17 +56,22 @@ class Bridge(QObject):
     @pyqtSlot(str)
     def openFileInWord(self, fileName):
         try:
-            file_path = os.path.join(FILE_DIR, fileName)
-            if os.path.exists(file_path):
+            file_path = self._resolve_file_path(fileName)
+            if file_path:
                 if sys.platform == "win32":
                     os.startfile(file_path)
                 elif sys.platform == "darwin":
                     subprocess.call(("open", file_path))
                 else:
                     subprocess.call(("xdg-open", file_path))
-                self.parent.statusBar().showMessage(f"Открытие файла: {fileName}")
+
+                self.parent.statusBar().showMessage(
+                    f"Открытие файла: {os.path.basename(file_path)}"
+                )
             else:
-                self.parent.statusBar().showMessage(f"Файл не найден: {fileName}")
+                self.parent.statusBar().showMessage(
+                    f"Файл не найден: {fileName}"
+                )
         except Exception as exc:
             print(f"Ошибка при открытии файла: {exc}")
             self.parent.statusBar().showMessage(f"Ошибка при открытии файла: {fileName}")
@@ -50,8 +79,8 @@ class Bridge(QObject):
     @pyqtSlot(str)
     def openFileLocation(self, fileName):
         try:
-            file_path = os.path.join(FILE_DIR, fileName)
-            if not os.path.exists(file_path):
+            file_path = self._resolve_file_path(fileName)
+            if not file_path:
                 self.parent.statusBar().showMessage(f"Файл не найден: {fileName}")
                 return
 
