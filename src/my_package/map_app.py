@@ -44,6 +44,7 @@ class MapApp(QMainWindow):
 
         self.setup_ui()
         self.setup_web_channel()
+        self.load_map_html()
 
     def setup_ui(self):
         self.setWindowTitle("Карта скважин - CartoDB Voyager (Офлайн режим)")
@@ -61,8 +62,6 @@ class MapApp(QMainWindow):
         layout.addWidget(self.map_view, 1)
 
         self.statusBar().showMessage("CartoDB Voyager - Готово (Офлайн режим)")
-
-        self.load_map_html()
         self.setup_toolbar(layout)
 
     def center_window(self):
