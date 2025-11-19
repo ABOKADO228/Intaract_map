@@ -1,3 +1,13 @@
+// Функция для экранирования HTML (защита от XSS)
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 // Инициализация карты
 var map = L.map('map', {minZoom: 0, maxZoom: 18}).setView([59.93, 30.34], 12);
 var markers = L.layerGroup().addTo(map);
@@ -210,6 +220,34 @@ initPoints();
 
 // Запускаем мониторинг подключений
 startConnectivityMonitoring();
+
+// Инициализируем обработчики событий для файлов
+initFileHandlers();
+}
+
+function initFileHandlers() {
+    // Обработчики для открытия файлов и папок через делегирование
+    document.addEventListener('click', function(event) {
+        const target = event.target;
+
+        // Обработка кнопки "Открыть"
+        if (target.classList.contains('open-doc')) {
+            const fileName = target.getAttribute('data-filename');
+            if (fileName) {
+                openFile(fileName);
+            }
+            event.preventDefault();
+        }
+
+        // Обработка кнопки "Показать в проводнике"
+        if (target.classList.contains('open-folder')) {
+            const fileName = target.getAttribute('data-filename');
+            if (fileName) {
+                openFileLocation(fileName);
+            }
+            event.preventDefault();
+        }
+    });
 }
 
 function startConnectivityMonitoring() {
@@ -697,13 +735,13 @@ const files = (marker.fileNames && marker.fileNames.length > 0)
 
 if (files.length > 0) {
     const fileItemsHtml = files.map(fileName => {
-        const safeName = JSON.stringify(fileName);
+        const safeName = escapeHtml(fileName);
         return `
             <div class="file-item">
-                <span class="file-name" title="${fileName}">${fileName}</span>
+                <span class="file-name" title="${safeName}">${safeName}</span>
                 <div class="file-actions">
-                    <button class="file-action open-doc" onclick="openFile(${safeName})">Открыть</button>
-                    <button class="file-action open-folder" onclick="openFileLocation(${safeName})">Показать в проводнике</button>
+                    <button class="file-action open-doc" data-filename="${safeName}">Открыть</button>
+                    <button class="file-action open-folder" data-filename="${safeName}">Показать в проводнике</button>
                 </div>
             </div>
         `;
@@ -751,9 +789,9 @@ if (activeBridgeForReveal && typeof activeBridgeForReveal.openFileLocation === '
 }
 }
 
-// Экспортируем функции на window, чтобы inline-обработчики имели к ним доступ
-window.openFile = openFile;
-window.openFileLocation = openFileLocation;
+// Убраны глобальные экспорты функций, так как теперь используем делегирование событий
+// window.openFile = openFile;
+// window.openFileLocation = openFileLocation;
 
 function toggleMarkerSelection(markerId) {
 const index = selectedMarkerIds.indexOf(markerId);
