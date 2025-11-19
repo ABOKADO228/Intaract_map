@@ -98,6 +98,10 @@ class DataManager:
         attachments_map = self._fetch_attachments_map(cursor)
         self.current_data = []
         for row in rows:
+            file_names = attachments_map.get(row[0], [])
+            if not file_names and row[9]:
+                file_names = [row[9]]
+
             point = {
                 "id": row[0],
                 "lat": row[1],
@@ -109,7 +113,7 @@ class DataManager:
                 "comments": row[7],
                 "color": row[8] or "#4361ee",
                 "fileName": row[9] or "",
-                "fileNames": attachments_map.get(row[0], []),
+                "fileNames": file_names,
             }
             self.current_data.append(point)
 
@@ -209,6 +213,10 @@ class DataManager:
 
         results: List[dict] = []
         for row in rows:
+            file_names = attachments_map.get(row[0], [])
+            if not file_names and row[9]:
+                file_names = [row[9]]
+
             results.append(
                 {
                     "id": row[0],
@@ -221,7 +229,7 @@ class DataManager:
                     "comments": row[7],
                     "color": row[8] or "#4361ee",
                     "fileName": row[9] or "",
-                    "fileNames": attachments_map.get(row[0], []),
+                    "fileNames": file_names,
                 }
             )
 

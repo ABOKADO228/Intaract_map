@@ -664,7 +664,9 @@ const pointInfo = document.getElementById('point-info');
 
 // Создаем HTML для информации о файлах
 let fileHtml = '';
-const files = marker.fileNames || [];
+const files = (marker.fileNames && marker.fileNames.length > 0)
+    ? marker.fileNames
+    : (marker.fileName ? [marker.fileName] : []);
 
 if (files.length > 0) {
     const fileItemsHtml = files.map(fileName => {
