@@ -47,6 +47,32 @@ class Bridge(QObject):
             print(f"Ошибка при открытии файла: {exc}")
             self.parent.statusBar().showMessage(f"Ошибка при открытии файла: {fileName}")
 
+    @pyqtSlot(str)
+    def openFileLocation(self, fileName):
+        try:
+            file_path = os.path.join(FILE_DIR, fileName)
+            if not os.path.exists(file_path):
+                self.parent.statusBar().showMessage(f"Файл не найден: {fileName}")
+                return
+
+            target_dir = os.path.dirname(file_path) or FILE_DIR
+
+            if sys.platform == "win32":
+                subprocess.Popen(["explorer", "/select,", file_path])
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", file_path])
+            else:
+                subprocess.Popen(["xdg-open", target_dir])
+
+            self.parent.statusBar().showMessage(
+                f"Открытие каталога для файла: {fileName}"
+            )
+        except Exception as exc:
+            print(f"Ошибка при открытии каталога файла: {exc}")
+            self.parent.statusBar().showMessage(
+                f"Ошибка при открытии каталога для файла: {fileName}"
+            )
+
     @pyqtSlot(str, result=str)
     def getTile(self, url):
         try:

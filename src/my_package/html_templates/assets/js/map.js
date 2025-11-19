@@ -8,7 +8,7 @@ var markerData = [];
 var colorChangeQueue = [];
 var colorChangeTimer = null;
 var currentLayer = null;
-var currentMode = 'offline';
+var currentMode = null;
 var connectivityState = {
     isOnline: false,
     lastChecked: 0
@@ -245,7 +245,7 @@ return fetch(testUrl, { method: 'HEAD', signal: controller.signal })
 }
 
 function switchToOfflineLayer() {
-if (currentMode === 'offline') {
+if (currentMode === 'offline' && currentLayer) {
     console.log("Уже в офлайн-режиме");
     updateOnlineStatus();
     return;
@@ -667,19 +667,24 @@ let fileHtml = '';
 const files = marker.fileNames || [];
 
 if (files.length > 0) {
+    const fileItemsHtml = files.map(fileName => {
+        const safeName = JSON.stringify(fileName);
+        return `
+            <div class="file-item">
+                <span class="file-name" title="${fileName}">${fileName}</span>
+                <div class="file-actions">
+                    <button class="file-action open-doc" onclick="openFile(${safeName})">Открыть</button>
+                    <button class="file-action open-folder" onclick="openFileLocation(${safeName})">Показать в проводнике</button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
     fileHtml = `
         <p><strong>Прикрепленные файлы (${files.length}):</strong></p>
         <div class="files-list">
-            ${files.map(fileName => `
-                <div class="file-item">
-                    <span class="file-name" title="${fileName}">${fileName}</span>
-                    <span class="file-link" onclick="openFile('${fileName}')">
-                        📎
-                    </span>
-                </div>
-            `).join('')}
+            ${fileItemsHtml}
         </div>
-        <p class="file-info">Нажмите на значок файла, чтобы открыть в Word</p>
     `;
 } else {
     fileHtml = '<p><strong>Прикрепленные файлы:</strong> отсутствуют</p>';
@@ -703,6 +708,15 @@ if (bridge && typeof bridge.openFileInWord === 'function') {
 } else {
     console.error("Функция открытия файла недоступна");
     alert("Не удалось открыть файл. Функция недоступна.");
+}
+}
+
+function openFileLocation(fileName) {
+if (bridge && typeof bridge.openFileLocation === 'function') {
+    bridge.openFileLocation(fileName);
+} else {
+    console.error("Функция открытия каталога недоступна");
+    alert("Не удалось открыть расположение файла. Функция недоступна.");
 }
 }
 
@@ -899,15 +913,9 @@ if (!searchText) {
     return;
 }
 
-// Ищем точки, содержащие текст поиска в любом поле
+// Ищем точки только по названию
 const results = markerData.filter(marker =>
-    (marker.name && marker.name.toLowerCase().includes(searchText)) ||
-    (marker.deep && marker.deep.toLowerCase().includes(searchText)) ||
-    (marker.filters && marker.filters.toLowerCase().includes(searchText)) ||
-    (marker.debit && marker.debit.toLowerCase().includes(searchText)) ||
-    (marker.comments && marker.comments.toLowerCase().includes(searchText)) ||
-    (marker.fileName && marker.fileName.toLowerCase().includes(searchText)) ||
-    (marker.fileNames && marker.fileNames.some(fileName => fileName.toLowerCase().includes(searchText)))
+    marker.name && marker.name.toLowerCase().includes(searchText)
 );
 
 // Отображаем результаты
