@@ -751,6 +751,10 @@ if (activeBridgeForReveal && typeof activeBridgeForReveal.openFileLocation === '
 }
 }
 
+// Экспортируем функции на window, чтобы inline-обработчики имели к ним доступ
+window.openFile = openFile;
+window.openFileLocation = openFileLocation;
+
 function toggleMarkerSelection(markerId) {
 const index = selectedMarkerIds.indexOf(markerId);
 if (index === -1) {
