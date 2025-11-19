@@ -4,7 +4,8 @@ var markers = L.layerGroup().addTo(map);
 var selectedMarkerIds = [];
 var markerData = [];
 
-    var bridge = null;
+var bridge = null;
+var mapInitialized = false;
 var colorChangeQueue = [];
 var colorChangeTimer = null;
 var currentLayer = null;
@@ -167,18 +168,29 @@ console.log("Границы обновлены:", bounds, "Zoom:", zoom);
 updateMapBounds();
 
 // Инициализация WebChannel
-if (typeof qt !== 'undefined') {
-new QWebChannel(qt.webChannelTransport, function(channel) {
+function bindBridge(channel) {
     bridge = channel.objects.bridge;
+    window.bridge = bridge;
     console.log("WebChannel инициализирован");
+    if (typeof window.onBridgeReady === 'function') {
+        window.onBridgeReady();
+    }
     initMap();
-});
+}
+
+if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+    new QWebChannel(qt.webChannelTransport, bindBridge);
 } else {
-console.error("WebChannel не доступен");
-initMap();
+    console.error("WebChannel не доступен");
+    initMap();
 }
 
 function initMap() {
+if (mapInitialized) {
+    return;
+}
+mapInitialized = true;
+
 // По умолчанию запускаем в офлайн-режиме
 switchToOfflineLayer();
 

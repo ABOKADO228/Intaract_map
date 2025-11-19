@@ -137,6 +137,7 @@ QPushButton:pressed {
         self.channel = QWebChannel()
         self.channel.registerObject("bridge", self.bridge)
         self.map_view.page().setWebChannel(self.channel)
+        self.map_view.loadFinished.connect(self._ensure_js_channel)
 
     def load_map_html(self):
         try:
@@ -169,6 +170,21 @@ QPushButton:pressed {
 
     def on_map_loaded(self):
         self.map_view.page().runJavaScript("initPoints();")
+
+    def _ensure_js_channel(self):
+        """Guarantee the JS side sees the registered bridge after each load."""
+
+        script = """
+            if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+                new QWebChannel(qt.webChannelTransport, function(channel) {
+                    window.bridge = channel.objects.bridge;
+                    if (typeof window.onBridgeReady === 'function') {
+                        window.onBridgeReady();
+                    }
+                });
+            }
+        """
+        self.map_view.page().runJavaScript(script)
 
     def get_current_map_bounds(self):
         return self.current_bounds
