@@ -1,3 +1,4 @@
+import importlib.util
 import os
 from pathlib import Path
 from typing import Iterable
@@ -112,8 +113,10 @@ def _gather_qt_resources() -> tuple[list[str], list[str]]:
         if resource_path.exists():
             data_args.extend(_as_data_arg(resource_path, "PyQt5/Qt/resources"))
 
-    for source, target in collect_data_files("PyQt5.QtWebEngineWidgets"):
-        data_args.extend(_as_data_arg(Path(source), target))
+    spec = importlib.util.find_spec("PyQt5.QtWebEngineWidgets")
+    if spec and spec.submodule_search_locations:
+        for source, target in collect_data_files("PyQt5.QtWebEngineWidgets"):
+            data_args.extend(_as_data_arg(Path(source), target))
 
     return data_args, binary_args
 
