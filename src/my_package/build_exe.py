@@ -17,6 +17,11 @@ except ImportError as exc:  # pragma: no cover - handled at runtime
     raise SystemExit("PyQt5 не найден. Установите зависимости из requirements.txt.") from exc
 
 try:
+    import PyQt5.sip  # гарантируем доступность sip внутри PyQt5
+except ImportError:
+    pass
+
+try:
     import sip
 except ImportError as exc:  # pragma: no cover - handled at runtime
     raise SystemExit(

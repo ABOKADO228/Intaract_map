@@ -38,6 +38,18 @@ def _run(cmd: list[str], *, cwd: Path | None = None) -> None:
     subprocess.run(cmd, cwd=cwd, check=True)
 
 
+def _ensure_module(module: str, package: str | None = None) -> None:
+    """Проверить, что модуль доступен, и при необходимости доустановить пакет."""
+
+    package = package or module
+
+    try:
+        __import__(module)
+    except ImportError:
+        _run([sys.executable, "-m", "pip", "install", "--no-warn-script-location", package])
+        __import__(module)
+
+
 def install_dependencies() -> None:
     """Установить зависимости, необходимые для сборки."""
 
@@ -46,6 +58,12 @@ def install_dependencies() -> None:
 
     _run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
     _run([sys.executable, "-m", "pip", "install", "--no-warn-script-location", "-r", str(REQUIREMENTS_FILE)])
+
+    # sip иногда не подхватывается в окружении пользователя. Страхуемся
+    # принудительной проверкой и догрузкой пакетов после установки основного
+    # списка зависимостей.
+    _ensure_module("sip", "sip")
+    _ensure_module("PyQt5.sip", "PyQt5-sip")
 
 
 def _qt_process_candidates(base: Path) -> Iterable[Path]:
