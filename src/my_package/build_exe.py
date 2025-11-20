@@ -16,6 +16,13 @@ try:
 except ImportError as exc:  # pragma: no cover - handled at runtime
     raise SystemExit("PyQt5 не найден. Установите зависимости из requirements.txt.") from exc
 
+try:
+    import sip
+except ImportError as exc:  # pragma: no cover - handled at runtime
+    raise SystemExit(
+        "Модуль sip не найден. Убедитесь, что установлены зависимости (pip install -r requirements.txt)."
+    ) from exc
+
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
 OUTPUT_DIR = PROJECT_ROOT.parent / "output"
@@ -124,6 +131,17 @@ def _gather_qt_resources() -> tuple[list[str], list[str]]:
 def build():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Чтобы избежать ошибок доступа при повторной сборке, удаляем старый exe,
+    # если он остался запущенным или заблокированным антивирусом.
+    existing_exe = OUTPUT_DIR / "Карта скважин" / "Карта скважин.exe"
+    if existing_exe.exists():
+        try:
+            existing_exe.unlink()
+        except OSError:
+            # Не критично: PyInstaller всё равно попробует перезаписать файл,
+            # но предупреждение PermissionError появляться будет реже.
+            pass
 
     data_args = []
     binary_args = []
