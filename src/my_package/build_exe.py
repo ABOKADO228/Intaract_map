@@ -180,6 +180,8 @@ def _gather_qt_resources(layout: QtLayout) -> tuple[list[str], list[str]]:
         resource_path = layout.resources_dir / resource_name
         if resource_path.exists():
             data_args.extend(_as_data_arg(resource_path, f"PyQt5/{qt_dir_name}/resources"))
+            # duplicate in top-level resources to match runtime search paths
+            data_args.extend(_as_data_arg(resource_path, "resources"))
 
     spec = importlib.util.find_spec("PyQt5.QtWebEngineWidgets")
     if spec and spec.submodule_search_locations:
@@ -220,10 +222,13 @@ def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
         if not src.exists():
             continue
 
-        dst = dist_dir / f"PyQt5/{qt_dir_name}/resources/{resource_name}"
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        if not dst.exists():
-            dst.write_bytes(src.read_bytes())
+        for target in (
+            dist_dir / f"PyQt5/{qt_dir_name}/resources/{resource_name}",
+            dist_dir / f"resources/{resource_name}",
+        ):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if not target.exists():
+                target.write_bytes(src.read_bytes())
 
 
 def build():

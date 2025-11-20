@@ -123,6 +123,12 @@ def setup_qt_webengine():
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
+    def _first_existing(paths):
+        for item in paths:
+            if os.path.exists(item):
+                return item
+        return None
+
     if getattr(sys, "frozen", False):
         base_path = sys._MEIPASS
         logger.info("Running in frozen mode, MEIPASS: %s", base_path)
@@ -136,23 +142,45 @@ def setup_qt_webengine():
             logger.error("PyQt5 not found in virtual environment!")
             return False
 
-    webengine_process = os.path.join(base_path, "bin", "QtWebEngineProcess.exe")
-    resources_path = os.path.join(base_path, "resources")
+    process_candidates = [
+        os.path.join(base_path, "QtWebEngineProcess.exe"),
+        os.path.join(base_path, "bin", "QtWebEngineProcess.exe"),
+        os.path.join(base_path, "PyQt5", "Qt", "bin", "QtWebEngineProcess.exe"),
+        os.path.join(base_path, "PyQt5", "Qt", "libexec", "QtWebEngineProcess.exe"),
+        os.path.join(base_path, "PyQt5", "Qt5", "bin", "QtWebEngineProcess.exe"),
+        os.path.join(base_path, "PyQt5", "Qt5", "libexec", "QtWebEngineProcess.exe"),
+    ]
 
-    if os.path.exists(webengine_process):
+    webengine_process = _first_existing(process_candidates)
+    if webengine_process:
         os.environ["QTWEBENGINEPROCESS_PATH"] = webengine_process
         logger.info("Set QTWEBENGINEPROCESS_PATH: %s", webengine_process)
     else:
-        logger.warning("QtWebEngineProcess.exe not found at: %s", webengine_process)
+        logger.error("QtWebEngineProcess.exe not found in any of: %s", ", ".join(process_candidates))
 
-    if os.path.exists(resources_path):
+    resource_candidates = [
+        os.path.join(base_path, "resources"),
+        os.path.join(base_path, "PyQt5", "Qt", "resources"),
+        os.path.join(base_path, "PyQt5", "Qt5", "resources"),
+    ]
+
+    resources_path = _first_existing(resource_candidates)
+    if resources_path:
         os.environ["QTWEBENGINE_RESOURCES_PATH"] = resources_path
         logger.info("Set QTWEBENGINE_RESOURCES_PATH: %s", resources_path)
+    else:
+        logger.error("Qt WebEngine resources not found in any of: %s", ", ".join(resource_candidates))
 
-    bin_path = os.path.join(base_path, "bin")
-    if os.path.exists(bin_path) and bin_path not in os.environ["PATH"]:
-        os.environ["PATH"] = bin_path + os.pathsep + os.environ["PATH"]
-        logger.info("Added to PATH: %s", bin_path)
+    bin_candidates = [
+        os.path.join(base_path, "bin"),
+        os.path.join(base_path, "PyQt5", "Qt", "bin"),
+        os.path.join(base_path, "PyQt5", "Qt5", "bin"),
+    ]
+
+    for bin_path in bin_candidates:
+        if os.path.exists(bin_path) and bin_path not in os.environ["PATH"]:
+            os.environ["PATH"] = bin_path + os.pathsep + os.environ["PATH"]
+            logger.info("Added to PATH: %s", bin_path)
 
     return True
 
