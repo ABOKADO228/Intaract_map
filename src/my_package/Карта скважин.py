@@ -2,15 +2,37 @@ import logging
 import os
 import sys
 
+os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false;qt.css.*=false")
+
 
 def set_qt_plugin_path():
     if getattr(sys, "frozen", False):
         base_path = sys._MEIPASS
-        qt_plugin_path = os.path.join(base_path, "qt5_plugins").replace("\\", "/")
-        os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = qt_plugin_path
+        plugin_candidates = [
+            os.path.join(base_path, "qt5_plugins"),
+            os.path.join(base_path, "plugins"),
+            os.path.join(base_path, "PyQt5", "Qt", "plugins"),
+            os.path.join(base_path, "PyQt5", "Qt5", "plugins"),
+        ]
 
-        webengine_process_path = os.path.join(base_path, "bin", "QtWebEngineProcess.exe").replace("\\", "/")
-        os.environ["QTWEBENGINEPROCESS_PATH"] = webengine_process_path
+        for candidate in plugin_candidates:
+            if os.path.isdir(candidate):
+                os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = candidate.replace("\\", "/")
+                break
+
+        process_candidates = [
+            os.path.join(base_path, "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt", "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt", "libexec", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt5", "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt5", "libexec", "QtWebEngineProcess.exe"),
+        ]
+
+        for process_path in process_candidates:
+            if os.path.exists(process_path):
+                os.environ["QTWEBENGINEPROCESS_PATH"] = process_path.replace("\\", "/")
+                break
 
 
 def setup_qt_paths():
@@ -21,15 +43,27 @@ def setup_qt_paths():
             os.path.join(base_path, "bin"),
             os.path.join(base_path, "plugins"),
             os.path.join(base_path, "resources"),
+            os.path.join(base_path, "PyQt5", "Qt", "bin"),
+            os.path.join(base_path, "PyQt5", "Qt5", "bin"),
         ]
 
         for path in qt_paths:
             if os.path.exists(path) and path not in os.environ["PATH"]:
                 os.environ["PATH"] = path + os.pathsep + os.environ["PATH"]
 
-        webengine_process = os.path.join(base_path, "QtWebEngineProcess.exe")
-        if os.path.exists(webengine_process):
-            os.environ["QTWEBENGINEPROCESS_PATH"] = webengine_process
+        process_candidates = [
+            os.path.join(base_path, "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt", "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt", "libexec", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt5", "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt5", "libexec", "QtWebEngineProcess.exe"),
+        ]
+
+        for webengine_process in process_candidates:
+            if os.path.exists(webengine_process):
+                os.environ["QTWEBENGINEPROCESS_PATH"] = webengine_process
+                break
 
         os.environ["QTWEBENGINE_RESOURCES_PATH"] = os.path.join(base_path, "resources")
 

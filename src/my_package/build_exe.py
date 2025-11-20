@@ -39,7 +39,12 @@ def _first_existing(paths: Iterable[Path]) -> Path | None:
 
 
 def _gather_qt_resources() -> tuple[list[str], list[str]]:
-    qt_path = Path(PyQt5.__file__).parent / "Qt"
+    qt_root = Path(PyQt5.__file__).parent
+    # PyQt5 может устанавливать Qt как "Qt" или "Qt5" в site-packages
+    qt_path = _first_existing([qt_root / "Qt5", qt_root / "Qt"])
+
+    if qt_path is None:
+        raise FileNotFoundError("Не удалось найти каталог Qt в установке PyQt5")
 
     resources = qt_path / "resources"
     bin_dir = qt_path / "bin"
@@ -58,8 +63,10 @@ def _gather_qt_resources() -> tuple[list[str], list[str]]:
         webengine_process = search[0] if search else None
 
     if webengine_process:
-        target_dir = "PyQt5/Qt/bin" if "bin" in webengine_process.parts else "PyQt5/Qt/libexec"
-        binary_args.extend(_as_binary_arg(webengine_process, target_dir))
+        # Всегда копируем в bin и libexec, так как разные версии Qt ищут бинарь в обоих местах
+        qt_dir_name = qt_path.name
+        binary_args.extend(_as_binary_arg(webengine_process, f"PyQt5/{qt_dir_name}/bin"))
+        binary_args.extend(_as_binary_arg(webengine_process, f"PyQt5/{qt_dir_name}/libexec"))
         # add a fallback copy near the root to satisfy runtime lookups in some environments
         binary_args.extend(_as_binary_arg(webengine_process, "."))
     else:  # pragma: no cover - defensive branch
@@ -109,6 +116,8 @@ def build():
         f"--paths={BASE_DIR}",
         "--hidden-import=PyQt5.QtWebEngineWidgets",
         "--hidden-import=PyQt5.QtWebEngine",  # гарантирует подтягивание webengine
+        "--hidden-import=PyQt5.sip",
+        "--hidden-import=sip",
     ]
 
     args += data_args + binary_args

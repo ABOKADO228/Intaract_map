@@ -41,6 +41,8 @@ def _configure_webengine_process_path():
         base_dir / process_name,
         base_dir / "PyQt5" / "Qt" / "bin" / process_name,
         base_dir / "PyQt5" / "Qt" / "libexec" / process_name,
+        base_dir / "PyQt5" / "Qt5" / "bin" / process_name,
+        base_dir / "PyQt5" / "Qt5" / "libexec" / process_name,
     ]
 
     for candidate in candidates:
