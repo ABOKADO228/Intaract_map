@@ -22,6 +22,34 @@ BUILD_DIR = OUTPUT_DIR / "build"
 SPEC_DIR = OUTPUT_DIR
 ENTRY_POINT = BASE_DIR / "Карта скважин.py"
 
+EXCLUDED_MODULES: list[str] = [
+    # Стандартные posix-модули, которых нет на Windows. PyInstaller пытается
+    # анализировать их, поэтому явно исключаем, чтобы не получать warn-лог.
+    "pwd",
+    "grp",
+    "posix",
+    "resource",
+    "_posixsubprocess",
+    "fcntl",
+    "termios",
+    # Опциональные зависимости requests/urllib3, которые нам не нужны в рантайме.
+    "simplejson",
+    "chardet",
+    "brotli",
+    "brotlicffi",
+    "socks",
+    "pyodide",
+    "js",
+    "zstandard",
+    "compression",
+    "h2",
+    "h2.events",
+    "h2.connection",
+    "OpenSSL",
+    "cryptography",
+    "cryptography.x509",
+]
+
 
 def _as_data_arg(source: Path, target: str) -> list[str]:
     return ["--add-data", f"{source}{os.pathsep}{target}"]
@@ -116,9 +144,13 @@ def build():
         f"--paths={BASE_DIR}",
         "--hidden-import=PyQt5.QtWebEngineWidgets",
         "--hidden-import=PyQt5.QtWebEngine",  # гарантирует подтягивание webengine
+        "--hidden-import=PyQt5.QtWebEngineCore",
         "--hidden-import=PyQt5.sip",
         "--hidden-import=sip",
     ]
+
+    for module in EXCLUDED_MODULES:
+        args.append(f"--exclude-module={module}")
 
     args += data_args + binary_args
     args.append(str(ENTRY_POINT))

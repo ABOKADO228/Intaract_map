@@ -23,6 +23,7 @@ PROJECT_ROOT = BASE_DIR.parent
 OUTPUT_DIR = PROJECT_ROOT.parent / "output"
 DIST_DIR = OUTPUT_DIR / "Карта скважин"
 REQUIREMENTS_FILE = BASE_DIR / "requirements.txt"
+WARN_DIR = OUTPUT_DIR / "build" / "Карта скважин"
 
 
 @dataclass
@@ -80,6 +81,24 @@ def verify_build_outputs() -> list[CheckResult]:
             name="QtWebEngineProcess доступен",
             passed=webengine_present,
             details="Файл найден в одной из стандартных папок" if webengine_present else "Файл не найден",
+        )
+    )
+
+    warn_files = sorted(WARN_DIR.glob("warn-*.txt"))
+    warn_lines: list[str] = []
+    if warn_files:
+        warn_path = warn_files[-1]
+        warn_lines = [line.strip() for line in warn_path.read_text(encoding="utf-8", errors="ignore").splitlines() if line.strip()]
+
+    warn_details = "нет предупреждений"
+    if warn_lines and warn_files:
+        warn_details = f"есть предупреждения, см. {warn_files[-1].name}"
+
+    checks.append(
+        CheckResult(
+            name="PyInstaller предупреждения",
+            passed=len(warn_lines) == 0,
+            details=warn_details,
         )
     )
 
