@@ -9,10 +9,18 @@ function escapeHtml(unsafe) {
 }
 
 // Инициализация карты
-var map = L.map('map', {minZoom: 0, maxZoom: 18}).setView([59.93, 30.34], 12);
+var map = L.map('map', {minZoom: 0, maxZoom: 18, preferCanvas: true}).setView([59.93, 30.34], 12);
 var markers = L.layerGroup().addTo(map);
 var selectedMarkerIds = [];
 var markerData = [];
+const markerIndex = new Map();
+
+let navTreeScheduled = false;
+let selectedListScheduled = false;
+
+function getMarkerById(id) {
+    return markerIndex.get(id) || markerData.find(function(marker) { return marker.id === id; });
+}
 
 var bridge = null;
 var mapInitialized = false;
@@ -447,6 +455,21 @@ if (name) {
     marker.bindPopup(popupContent);
 }
 
+const tooltipParts = [];
+if (name) {
+    tooltipParts.push(`<strong>${escapeHtml(name)}</strong>`);
+}
+if (deep !== undefined && deep !== null && deep !== '') {
+    tooltipParts.push(`Глубина: ${escapeHtml(String(deep))}`);
+}
+if (tooltipParts.length) {
+    marker.bindTooltip(tooltipParts.join('<br>'), {
+        direction: 'top',
+        opacity: 0.95,
+        sticky: true
+    });
+}
+
 // Сохраняем данные маркера
 var markerInfo = {
     id: id,
@@ -465,6 +488,7 @@ var markerInfo = {
 };
 
 markerData.push(markerInfo);
+markerIndex.set(id, markerInfo);
 
 // Добавляем обработчик клика для показа информации
 marker.on('click', function() {
@@ -478,7 +502,7 @@ return marker;
 
 function removeSelectedPoints() {
    selectedMarkerIds.forEach(markerId => {
-    const marker = markerData.find(m => m.id === markerId);
+    const marker = getMarkerById(markerId);
     if (marker) {
         var activeBridge = getBridge();
         if (activeBridge) {
@@ -489,38 +513,47 @@ function removeSelectedPoints() {
 }
 
 function updateNavTree() {
-const navTree = document.getElementById('nav-tree');
+    if (navTreeScheduled) return;
+    navTreeScheduled = true;
+    requestAnimationFrame(renderNavTree);
+}
 
-// Очищаем дерево
-navTree.innerHTML = '';
+function renderNavTree() {
+    navTreeScheduled = false;
+    const navTree = document.getElementById('nav-tree');
 
-if (markerData.length === 0) {
-    const emptyItem = document.createElement('li');
-    emptyItem.textContent = 'Добавьте маркеры, чтобы увидеть элементы дерева';
-    emptyItem.classList.add('empty');
-    navTree.appendChild(emptyItem);
-} else {
-    // Группируем точки по цвету
-    const groupedMarkers = {};
-    markerData.forEach(marker => {
-        if (!groupedMarkers[marker.color]) {
-            groupedMarkers[marker.color] = [];
-        }
-        groupedMarkers[marker.color].push(marker);
-    });
+    // Очищаем дерево
+    navTree.innerHTML = '';
 
-    // Создаем группы для каждого цвета
-    Object.keys(groupedMarkers).forEach(color => {
-        const groupMarkers = groupedMarkers[color];
+    if (markerData.length === 0) {
+        const emptyItem = document.createElement('li');
+        emptyItem.textContent = 'Добавьте маркеры, чтобы увидеть элементы дерева';
+        emptyItem.classList.add('empty');
+        navTree.appendChild(emptyItem);
+    } else {
+        // Группируем точки по цвету
+        const groupedMarkers = {};
+        markerData.forEach(marker => {
+            if (!groupedMarkers[marker.color]) {
+                groupedMarkers[marker.color] = [];
+            }
+            groupedMarkers[marker.color].push(marker);
+        });
 
-        // Создаем заголовок группы
-        const groupHeader = document.createElement('div');
-        groupHeader.className = 'group-header';
+        const fragment = document.createDocumentFragment();
 
-        // Добавляем счетчик файлов в заголовок группы
-        const totalFiles = groupMarkers.reduce((sum, marker) => sum + (marker.fileNames ? marker.fileNames.length : 0), 0);
+        // Создаем группы для каждого цвета
+        Object.keys(groupedMarkers).forEach(color => {
+            const groupMarkers = groupedMarkers[color];
 
-        groupHeader.innerHTML = `
+            // Создаем заголовок группы
+            const groupHeader = document.createElement('div');
+            groupHeader.className = 'group-header';
+
+            // Добавляем счетчик файлов в заголовок группы
+            const totalFiles = groupMarkers.reduce((sum, marker) => sum + (marker.fileNames ? marker.fileNames.length : 0), 0);
+
+            groupHeader.innerHTML = `
             <div class="group-title">
                 <span style="color: ${color}">●</span>
                 <span>Цвет: ${color}</span>
@@ -612,9 +645,9 @@ if (markerData.length === 0) {
             groupContent.appendChild(listItem);
         });
 
-        // Добавляем группу в дерево
-        navTree.appendChild(groupHeader);
-        navTree.appendChild(groupContent);
+        // Добавляем группу в общий фрагмент, чтобы уменьшить количество операций с DOM
+        fragment.appendChild(groupHeader);
+        fragment.appendChild(groupContent);
 
         // Добавляем обработчики для группы
         const toggleBtn = groupHeader.querySelector('.toggle-group');
@@ -666,62 +699,75 @@ if (markerData.length === 0) {
             }
         });
     });
+
+        navTree.appendChild(fragment);
+    }
 }
 }
 
 function updateSelectedPointsList() {
-const selectedList = document.getElementById('selected-points-list');
-
-// Очищаем список
-selectedList.innerHTML = '';
-
-if (selectedMarkerIds.length === 0) {
-    const emptyItem = document.createElement('div');
-    emptyItem.textContent = 'Нет выбранных точек';
-    emptyItem.classList.add('empty');
-    selectedList.appendChild(emptyItem);
-} else {
-    // Добавляем выбранные точки в список
-    selectedMarkerIds.forEach(markerId => {
-        const marker = markerData.find(m => m.id === markerId);
-        if (marker) {
-            const listItem = document.createElement('div');
-            listItem.className = 'selected-point-item';
-
-            const pointName = document.createElement('div');
-            pointName.className = 'selected-point-name';
-
-            // Добавляем счетчик файлов к названию точки
-            const fileCount = marker.fileNames ? marker.fileNames.length : 0;
-            pointName.innerHTML = `
-                <span>${marker.name}</span>
-                ${fileCount > 0 ? `<span class="file-count">${fileCount}</span>` : ''}
-            `;
-            pointName.title = marker.name + (fileCount > 0 ? ` (${fileCount} файлов)` : '');
-
-            const removeBtn = document.createElement('button');
-            removeBtn.className = 'remove-selected-btn';
-            removeBtn.innerHTML = '✗';
-            removeBtn.title = 'Убрать из выбранных';
-            removeBtn.onclick = (function(markerId) {
-                return function() {
-                    toggleMarkerSelection(markerId);
-                };
-            })(marker.id);
-
-             pointName.onclick = (function(marker) {
-                return function() {
-                    map.panTo(marker.marker.getLatLng());
-                    marker.marker.openPopup();
-                };
-            })(marker);
-
-            listItem.appendChild(pointName);
-            listItem.appendChild(removeBtn);
-            selectedList.appendChild(listItem);
-        }
-    });
+    if (selectedListScheduled) return;
+    selectedListScheduled = true;
+    requestAnimationFrame(renderSelectedPointsList);
 }
+
+function renderSelectedPointsList() {
+    selectedListScheduled = false;
+    const selectedList = document.getElementById('selected-points-list');
+    const fragment = document.createDocumentFragment();
+
+    // Очищаем список
+    selectedList.innerHTML = '';
+
+    if (selectedMarkerIds.length === 0) {
+        const emptyItem = document.createElement('div');
+        emptyItem.textContent = 'Нет выбранных точек';
+        emptyItem.classList.add('empty');
+        selectedList.appendChild(emptyItem);
+    } else {
+        // Добавляем выбранные точки в список
+        selectedMarkerIds.forEach(markerId => {
+            const marker = getMarkerById(markerId);
+            if (marker) {
+                const listItem = document.createElement('div');
+                listItem.className = 'selected-point-item';
+
+                const pointName = document.createElement('div');
+                pointName.className = 'selected-point-name';
+
+                // Добавляем счетчик файлов к названию точки
+                const fileCount = marker.fileNames ? marker.fileNames.length : 0;
+                pointName.innerHTML = `
+                    <span>${marker.name}</span>
+                    ${fileCount > 0 ? `<span class="file-count">${fileCount}</span>` : ''}
+                `;
+                pointName.title = marker.name + (fileCount > 0 ? ` (${fileCount} файлов)` : '');
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'remove-selected-btn';
+                removeBtn.innerHTML = '✗';
+                removeBtn.title = 'Убрать из выбранных';
+                removeBtn.onclick = (function(markerId) {
+                    return function() {
+                        toggleMarkerSelection(markerId);
+                    };
+                })(marker.id);
+
+                 pointName.onclick = (function(marker) {
+                    return function() {
+                        map.panTo(marker.marker.getLatLng());
+                        marker.marker.openPopup();
+                    };
+                })(marker);
+
+                listItem.appendChild(pointName);
+                listItem.appendChild(removeBtn);
+                fragment.appendChild(listItem);
+            }
+        });
+
+        selectedList.appendChild(fragment);
+    }
 }
 
 function showPointInfo(marker) {
@@ -817,7 +863,7 @@ updateSelectedPointsList();
 }
 
 function setMarkerVisibility(markerId, visible) {
-const markerInfo = markerData.find(m => m.id === markerId);
+const markerInfo = getMarkerById(markerId);
 if (markerInfo) {
     markerInfo.visible = visible;
     if (visible) {
@@ -829,7 +875,7 @@ if (markerInfo) {
 }
 
 function toggleMarkerVisibility(markerId) {
-const markerInfo = markerData.find(m => m.id === markerId);
+const markerInfo = getMarkerById(markerId);
 if (markerInfo) {
     markerInfo.visible = !markerInfo.visible;
     setMarkerVisibility(markerId, markerInfo.visible);
@@ -855,7 +901,7 @@ updateNavTree();
 
 function hideSelectedMarkers() {
 selectedMarkerIds.forEach(id => {
-    const markerInfo = markerData.find(m => m.id === id);
+    const markerInfo = getMarkerById(id);
     if (markerInfo) {
         markerInfo.visible = false;
         setMarkerVisibility(id, false);
@@ -866,7 +912,7 @@ updateNavTree();
 
 function showSelectedMarkers() {
 selectedMarkerIds.forEach(id => {
-    const markerInfo = markerData.find(m => m.id === id);
+    const markerInfo = getMarkerById(id);
     if (markerInfo) {
         markerInfo.visible = true;
         setMarkerVisibility(id, true);
@@ -883,7 +929,7 @@ if (selectedMarkerIds.length === 0) {
 
 // Обновляем только выбранные маркеры
 selectedMarkerIds.forEach(function(markerId) {
-    const markerInfo = markerData.find(m => m.id === markerId);
+    const markerInfo = getMarkerById(markerId);
     if (markerInfo) {
         markerInfo.color = color;
 
@@ -952,6 +998,7 @@ const index = markerData.findIndex(m => m.id === id);
 if (index !== -1) {
     map.removeLayer(markerData[index].marker);
     markerData.splice(index, 1);
+    markerIndex.delete(id);
 
     // Удаляем из выбранных, если есть
     const selectedIndex = selectedMarkerIds.indexOf(id);

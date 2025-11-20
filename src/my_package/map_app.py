@@ -310,13 +310,24 @@ QPushButton:pressed {
             file_count = len(point.get("fileNames", []))
             file_text = f" с {file_count} файлами" if file_count > 0 else ""
 
-            reply = QMessageBox.question(
+            first_reply = QMessageBox.question(
                 self,
                 "Подтверждение",
                 f"Вы действительно хотите удалить точку '{point['name']}'{file_text}?",
                 QMessageBox.Yes | QMessageBox.No,
             )
-            if reply == QMessageBox.Yes:
+
+            if first_reply != QMessageBox.Yes:
+                return
+
+            second_reply = QMessageBox.question(
+                self,
+                "Подтверждение удаления",
+                "Это действие необратимо. Удалить точку окончательно?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+
+            if second_reply == QMessageBox.Yes:
                 self.data_manager.remove_point(point_id)
                 self.map_view.page().runJavaScript(f"removeMarker('{point_id}');")
                 self.statusBar().showMessage(f"Точка '{point['name']}' удалена")
