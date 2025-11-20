@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -229,6 +230,16 @@ def build():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
 
+    dist_dir = OUTPUT_DIR / "Карта скважин"
+    if dist_dir.exists():
+        try:
+            shutil.rmtree(dist_dir)
+        except OSError as exc:
+            raise SystemExit(
+                "Не удалось удалить предыдущую сборку. Закройте запущенный exe "
+                "и повторите попытку (ошибка при очистке dist)."
+            ) from exc
+
     # Чтобы избежать ошибок доступа при повторной сборке, удаляем старый exe,
     # если он остался запущенным или заблокированным антивирусом.
     existing_exe = OUTPUT_DIR / "Карта скважин" / "Карта скважин.exe"
@@ -279,7 +290,6 @@ def build():
 
     # Дополнительная страховка: если PyInstaller не разложил WebEngine,
     # продублируем файлы напрямую в dist.
-    dist_dir = OUTPUT_DIR / "Карта скважин"
     _ensure_webengine_in_dist(layout, dist_dir)
 
 
