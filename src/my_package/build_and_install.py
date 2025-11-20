@@ -14,6 +14,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from dataclasses import dataclass
+from importlib import util as importlib_util
 from pathlib import Path
 from typing import Iterable
 
@@ -43,21 +44,35 @@ def _ensure_module(module: str, package: str | None = None) -> None:
 
     package = package or module
 
-    try:
-        __import__(module)
+    if importlib_util.find_spec(module) is not None:
         return
-    except ImportError:
-        pass
 
     _run([sys.executable, "-m", "pip", "install", "--no-warn-script-location", package])
 
-    try:
-        __import__(module)
-    except ImportError as exc:  # pragma: no cover - пользовательская среда
+    if importlib_util.find_spec(module) is None:  # pragma: no cover - пользовательская среда
         raise SystemExit(
             f"Не удалось загрузить модуль '{module}' даже после установки пакета '{package}'."
             " Убедитесь, что имеется доступ в интернет или пакет установлен вручную."
-        ) from exc
+        )
+
+
+def _import_sip_variant() -> str | None:
+    """Вернуть название успешно импортированного sip-модуля и зафиксировать alias."""
+
+    try:
+        import sip  # type: ignore
+
+        return "sip"
+    except ImportError:
+        pass
+
+    try:
+        from PyQt5 import sip as pyqt_sip  # type: ignore
+
+        sys.modules["sip"] = pyqt_sip  # подсказываем PyInstaller, что модуль доступен
+        return "PyQt5.sip"
+    except ImportError:
+        return None
 
 
 def _ensure_sip() -> None:
@@ -66,14 +81,23 @@ def _ensure_sip() -> None:
     # В свежих версиях PyQt5 основной модуль находится по пути ``PyQt5.sip``.
     # На старых системах модуль может называться просто ``sip``. Проверяем оба
     # варианта, не останавливая сборку, если установлен только один из них.
-    try:
-        _ensure_module("PyQt5.sip", "PyQt5-sip")
+    variant = _import_sip_variant()
+    if variant:
+        print(f"[sip] найден модуль {variant}")
         return
-    except SystemExit:
-        # попробуем классический пакет sip
-        pass
 
-    _ensure_module("sip", "sip")
+    for module_name, package in (("PyQt5.sip", "PyQt5-sip"), ("sip", "sip")):
+        print(f"[sip] устанавливаю {package}...")
+        _run([sys.executable, "-m", "pip", "install", "--no-warn-script-location", package])
+
+        variant = _import_sip_variant()
+        if variant:
+            print(f"[sip] успешно найден {variant} после установки {package}")
+            return
+
+    raise SystemExit(
+        "Не удалось загрузить sip. Проверьте интернет-соединение или установите пакеты 'PyQt5-sip' и 'sip' вручную."
+    )
 
 
 def install_dependencies() -> None:

@@ -1,5 +1,6 @@
 import importlib.util
 import os
+import sys
 from pathlib import Path
 from typing import Iterable
 
@@ -16,17 +17,27 @@ try:
 except ImportError as exc:  # pragma: no cover - handled at runtime
     raise SystemExit("PyQt5 не найден. Установите зависимости из requirements.txt.") from exc
 
-try:
-    import PyQt5.sip  # гарантируем доступность sip внутри PyQt5
-except ImportError:
-    pass
+def _import_sip_or_alias() -> None:
+    """Импортировать sip, если нужно — зарегистрировать alias из PyQt5."""
 
-try:
-    import sip
-except ImportError as exc:  # pragma: no cover - handled at runtime
-    raise SystemExit(
-        "Модуль sip не найден. Убедитесь, что установлены зависимости (pip install -r requirements.txt)."
-    ) from exc
+    try:
+        import sip  # type: ignore
+
+        return
+    except ImportError:
+        pass
+
+    try:
+        from PyQt5 import sip as pyqt_sip  # type: ignore
+
+        sys.modules["sip"] = pyqt_sip
+    except ImportError as exc:  # pragma: no cover - handled at runtime
+        raise SystemExit(
+            "Модуль sip не найден. Убедитесь, что установлены зависимости (pip install -r requirements.txt)."
+        ) from exc
+
+
+_import_sip_or_alias()
 
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
