@@ -1,6 +1,7 @@
 import importlib.util
 import os
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
@@ -90,41 +91,62 @@ def _first_existing(paths: Iterable[Path]) -> Path | None:
     return None
 
 
-def _gather_qt_resources() -> tuple[list[str], list[str]]:
+@dataclass
+class QtLayout:
+    qt_path: Path
+    bin_dir: Path
+    libexec_dir: Path
+    resources_dir: Path
+    webengine_process: Path
+
+    @property
+    def qt_dir_name(self) -> str:
+        return self.qt_path.name
+
+
+def _discover_qt_layout() -> QtLayout:
     qt_root = Path(PyQt5.__file__).parent
-    # PyQt5 может устанавливать Qt как "Qt" или "Qt5" в site-packages
     qt_path = _first_existing([qt_root / "Qt5", qt_root / "Qt"])
 
     if qt_path is None:
         raise FileNotFoundError("Не удалось найти каталог Qt в установке PyQt5")
 
-    resources = qt_path / "resources"
     bin_dir = qt_path / "bin"
     libexec_dir = qt_path / "libexec"
-    webengine_candidates = [
+    resources_dir = qt_path / "resources"
+
+    process_candidates = [
         bin_dir / ("QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"),
         libexec_dir / ("QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"),
     ]
 
-    data_args: list[str] = []
-    binary_args: list[str] = []
-
-    webengine_process = _first_existing(webengine_candidates)
+    webengine_process = _first_existing(process_candidates)
     if webengine_process is None:
         search = list(qt_path.rglob("QtWebEngineProcess*"))
         webengine_process = search[0] if search else None
 
-    if webengine_process:
-        # Всегда копируем в bin и libexec, так как разные версии Qt ищут бинарь в обоих местах
-        qt_dir_name = qt_path.name
-        binary_args.extend(_as_binary_arg(webengine_process, f"PyQt5/{qt_dir_name}/bin"))
-        binary_args.extend(_as_binary_arg(webengine_process, f"PyQt5/{qt_dir_name}/libexec"))
-        # add a fallback copy near the root to satisfy runtime lookups in some environments
-        binary_args.extend(_as_binary_arg(webengine_process, "."))
-    else:  # pragma: no cover - defensive branch
-        raise FileNotFoundError(
-            "QtWebEngineProcess не найден. Проверьте установку PyQt5 и QtWebEngine."
-        )
+    if webengine_process is None:
+        raise FileNotFoundError("QtWebEngineProcess не найден. Проверьте установку PyQt5 и QtWebEngine.")
+
+    return QtLayout(
+        qt_path=qt_path,
+        bin_dir=bin_dir,
+        libexec_dir=libexec_dir,
+        resources_dir=resources_dir,
+        webengine_process=webengine_process,
+    )
+
+
+def _gather_qt_resources(layout: QtLayout) -> tuple[list[str], list[str]]:
+    data_args: list[str] = []
+    binary_args: list[str] = []
+
+    # Всегда копируем в bin и libexec, так как разные версии Qt ищут бинарь в обоих местах
+    qt_dir_name = layout.qt_dir_name
+    binary_args.extend(_as_binary_arg(layout.webengine_process, f"PyQt5/{qt_dir_name}/bin"))
+    binary_args.extend(_as_binary_arg(layout.webengine_process, f"PyQt5/{qt_dir_name}/libexec"))
+    # add a fallback copy near the root to satisfy runtime lookups in some environments
+    binary_args.extend(_as_binary_arg(layout.webengine_process, "."))
 
     for resource_name in (
         "icudtl.dat",
@@ -132,9 +154,9 @@ def _gather_qt_resources() -> tuple[list[str], list[str]]:
         "qtwebengine_resources_100p.pak",
         "qtwebengine_resources_200p.pak",
     ):
-        resource_path = resources / resource_name
+        resource_path = layout.resources_dir / resource_name
         if resource_path.exists():
-            data_args.extend(_as_data_arg(resource_path, "PyQt5/Qt/resources"))
+            data_args.extend(_as_data_arg(resource_path, f"PyQt5/{qt_dir_name}/resources"))
 
     spec = importlib.util.find_spec("PyQt5.QtWebEngineWidgets")
     if spec and spec.submodule_search_locations:
@@ -142,6 +164,43 @@ def _gather_qt_resources() -> tuple[list[str], list[str]]:
             data_args.extend(_as_data_arg(Path(source), target))
 
     return data_args, binary_args
+
+
+def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
+    """Дублируем QtWebEngineProcess и ресурсы прямо в папку сборки после PyInstaller.
+
+    Иногда PyInstaller не раскладывает бинарь в ожидаемые подпапки (из-за прав или
+    нестандартного расположения Qt). Этот шаг копирует проверенные файлы напрямую
+    в dist, чтобы рантайм всегда находил WebEngine.
+    """
+
+    qt_dir_name = layout.qt_dir_name
+    targets = [
+        dist_dir / f"PyQt5/{qt_dir_name}/bin/{layout.webengine_process.name}",
+        dist_dir / f"PyQt5/{qt_dir_name}/libexec/{layout.webengine_process.name}",
+        dist_dir / layout.webengine_process.name,
+    ]
+
+    for target in targets:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if not target.exists():
+            target.write_bytes(layout.webengine_process.read_bytes())
+
+    # Дублируем ключевые ресурсы QtWebEngine
+    for resource_name in (
+        "icudtl.dat",
+        "qtwebengine_resources.pak",
+        "qtwebengine_resources_100p.pak",
+        "qtwebengine_resources_200p.pak",
+    ):
+        src = layout.resources_dir / resource_name
+        if not src.exists():
+            continue
+
+        dst = dist_dir / f"PyQt5/{qt_dir_name}/resources/{resource_name}"
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if not dst.exists():
+            dst.write_bytes(src.read_bytes())
 
 
 def build():
@@ -159,6 +218,8 @@ def build():
             # но предупреждение PermissionError появляться будет реже.
             pass
 
+    layout = _discover_qt_layout()
+
     data_args = []
     binary_args = []
 
@@ -166,7 +227,7 @@ def build():
     data_args.extend(_as_data_arg(BASE_DIR / "html_templates", "html_templates"))
     data_args.extend(_as_data_arg(BASE_DIR / "data", "data"))
 
-    qt_data_args, qt_binary_args = _gather_qt_resources()
+    qt_data_args, qt_binary_args = _gather_qt_resources(layout)
     data_args.extend(qt_data_args)
     binary_args.extend(qt_binary_args)
 
@@ -193,6 +254,11 @@ def build():
     args.append(str(ENTRY_POINT))
 
     pyinstaller_run(args)
+
+    # Дополнительная страховка: если PyInstaller не разложил WebEngine,
+    # продублируем файлы напрямую в dist.
+    dist_dir = OUTPUT_DIR / "Карта скважин"
+    _ensure_webengine_in_dist(layout, dist_dir)
 
 
 if __name__ == "__main__":
