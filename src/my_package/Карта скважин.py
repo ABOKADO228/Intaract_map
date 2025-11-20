@@ -69,6 +69,16 @@ def setup_qt_paths():
 
 
 def debug_qt_paths():
+    """Печать отладочной информации Qt (по умолчанию только в frozen-сборке)."""
+
+    if not getattr(sys, "frozen", False) and os.environ.get("QT_DEBUG_INFO", "").lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return
+
     print("=== QT DEBUG INFO ===")
     print("Frozen:", getattr(sys, "frozen", False))
 
@@ -172,12 +182,16 @@ from map_app import MapApp  # noqa: E402
 
 
 def ensure_offline_assets():
+    assets_dir = os.path.join(os.path.dirname(__file__), "html_templates", "assets", "leaflet")
+    if os.path.exists(os.path.join(assets_dir, "leaflet.css")) and os.path.exists(
+        os.path.join(assets_dir, "leaflet.js")
+    ):
+        return
+
     try:
         import create_offline_assets
 
-        print("Создание офлайн-ассетов...")
         create_offline_assets.create_offline_assets()
-        print("Офлайн-ассеты созданы успешно")
     except Exception as exc:
         print(f"Ошибка создания ассетов: {exc}")
 
