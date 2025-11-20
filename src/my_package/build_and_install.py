@@ -45,9 +45,35 @@ def _ensure_module(module: str, package: str | None = None) -> None:
 
     try:
         __import__(module)
+        return
     except ImportError:
-        _run([sys.executable, "-m", "pip", "install", "--no-warn-script-location", package])
+        pass
+
+    _run([sys.executable, "-m", "pip", "install", "--no-warn-script-location", package])
+
+    try:
         __import__(module)
+    except ImportError as exc:  # pragma: no cover - пользовательская среда
+        raise SystemExit(
+            f"Не удалось загрузить модуль '{module}' даже после установки пакета '{package}'."
+            " Убедитесь, что имеется доступ в интернет или пакет установлен вручную."
+        ) from exc
+
+
+def _ensure_sip() -> None:
+    """Убедиться, что доступен sip (PyQt5.sip или sip)."""
+
+    # В свежих версиях PyQt5 основной модуль находится по пути ``PyQt5.sip``.
+    # На старых системах модуль может называться просто ``sip``. Проверяем оба
+    # варианта, не останавливая сборку, если установлен только один из них.
+    try:
+        _ensure_module("PyQt5.sip", "PyQt5-sip")
+        return
+    except SystemExit:
+        # попробуем классический пакет sip
+        pass
+
+    _ensure_module("sip", "sip")
 
 
 def install_dependencies() -> None:
@@ -62,8 +88,7 @@ def install_dependencies() -> None:
     # sip иногда не подхватывается в окружении пользователя. Страхуемся
     # принудительной проверкой и догрузкой пакетов после установки основного
     # списка зависимостей.
-    _ensure_module("sip", "sip")
-    _ensure_module("PyQt5.sip", "PyQt5-sip")
+    _ensure_sip()
 
 
 def _qt_process_candidates(base: Path) -> Iterable[Path]:
