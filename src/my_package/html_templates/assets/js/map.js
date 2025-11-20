@@ -703,7 +703,6 @@ function renderNavTree() {
         navTree.appendChild(fragment);
     }
 }
-}
 
 function updateSelectedPointsList() {
     if (selectedListScheduled) return;
