@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Iterable
 
 try:
     from PyInstaller.__main__ import run as pyinstaller_run
@@ -30,18 +31,41 @@ def _as_binary_arg(source: Path, target: str) -> list[str]:
     return ["--add-binary", f"{source}{os.pathsep}{target}"]
 
 
+def _first_existing(paths: Iterable[Path]) -> Path | None:
+    for path in paths:
+        if path.exists():
+            return path
+    return None
+
+
 def _gather_qt_resources() -> tuple[list[str], list[str]]:
     qt_path = Path(PyQt5.__file__).parent / "Qt"
 
     resources = qt_path / "resources"
-    bin_dir = qt_path / ("bin" if (qt_path / "bin").exists() else "libexec")
-    webengine_process = bin_dir / ("QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess")
+    bin_dir = qt_path / "bin"
+    libexec_dir = qt_path / "libexec"
+    webengine_candidates = [
+        bin_dir / ("QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"),
+        libexec_dir / ("QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"),
+    ]
 
     data_args: list[str] = []
     binary_args: list[str] = []
 
-    if webengine_process.exists():
-        binary_args.extend(_as_binary_arg(webengine_process, "PyQt5/Qt/bin"))
+    webengine_process = _first_existing(webengine_candidates)
+    if webengine_process is None:
+        search = list(qt_path.rglob("QtWebEngineProcess*"))
+        webengine_process = search[0] if search else None
+
+    if webengine_process:
+        target_dir = "PyQt5/Qt/bin" if "bin" in webengine_process.parts else "PyQt5/Qt/libexec"
+        binary_args.extend(_as_binary_arg(webengine_process, target_dir))
+        # add a fallback copy near the root to satisfy runtime lookups in some environments
+        binary_args.extend(_as_binary_arg(webengine_process, "."))
+    else:  # pragma: no cover - defensive branch
+        raise FileNotFoundError(
+            "QtWebEngineProcess не найден. Проверьте установку PyQt5 и QtWebEngine."
+        )
 
     for resource_name in (
         "icudtl.dat",
