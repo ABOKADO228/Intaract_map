@@ -391,8 +391,8 @@ def _prepare_ascii_entry_point() -> Path:
 
     wrapper_path = BUILD_DIR / "app_entry.py"
     wrapper_code = """
-import runpy
 import sys
+import types
 import traceback
 from pathlib import Path
 
@@ -447,6 +447,21 @@ def _log_failure(message: str, exc: BaseException | None = None) -> None:
     print(message)
 
 
+def _run_entry(entry: Path) -> None:
+    try:
+        code = entry.read_text(encoding="utf-8")
+    except Exception as exc:  # pragma: no cover - runtime guard
+        _log_failure(f"Не удалось прочитать {entry}: {exc}")
+        raise
+
+    module = types.ModuleType("__main__")
+    module.__file__ = str(entry)
+    module.__package__ = None
+    sys.modules["__main__"] = module
+
+    exec(compile(code, str(entry), "exec"), module.__dict__)
+
+
 def main() -> None:
     entry = _resolve_entry()
     if not entry:
@@ -454,7 +469,8 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        runpy.run_path(str(entry), run_name="__main__")
+        _log_failure(f"Запуск основного скрипта: {entry}")
+        _run_entry(entry)
     except Exception as exc:  # pragma: no cover - runtime guard
         _log_failure("Ошибка при запуске приложения", exc)
         raise
