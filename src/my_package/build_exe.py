@@ -272,15 +272,13 @@ def _prepare_ascii_entry_point() -> Path:
     """
 
     wrapper_path = BUILD_DIR / "app_entry.py"
-    wrapper_code = f"""import pathlib, runpy, sys
-
-ENTRY = pathlib.Path(r"{ENTRY_POINT}")
-
-if not ENTRY.exists():
-    raise FileNotFoundError(f"Не найден основной скрипт: {ENTRY}")
-
-runpy.run_path(str(ENTRY), run_name='__main__')
-"""
+    wrapper_code = (
+        "import pathlib, runpy\n\n"
+        f"ENTRY = pathlib.Path(r\"{ENTRY_POINT}\")\n\n"
+        "if not ENTRY.exists():\n"
+        "    raise FileNotFoundError(f\"Не найден основной скрипт: {ENTRY}\")\n\n"
+        "runpy.run_path(str(ENTRY), run_name='__main__')\n"
+    )
 
     wrapper_path.write_text(wrapper_code, encoding="utf-8")
     return wrapper_path
