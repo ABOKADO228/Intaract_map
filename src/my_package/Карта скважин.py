@@ -171,6 +171,17 @@ def setup_qt_webengine():
     else:
         logger.error("Qt WebEngine resources not found in any of: %s", ", ".join(resource_candidates))
 
+    locales_candidates = [
+        os.path.join(path, "qtwebengine_locales") for path in resource_candidates
+    ]
+
+    locales_path = _first_existing(locales_candidates)
+    if locales_path:
+        os.environ["QTWEBENGINE_LOCALES_PATH"] = locales_path
+        logger.info("Set QTWEBENGINE_LOCALES_PATH: %s", locales_path)
+    else:
+        logger.error("Qt WebEngine locales not found in any of: %s", ", ".join(locales_candidates))
+
     bin_candidates = [
         os.path.join(base_path, "bin"),
         os.path.join(base_path, "PyQt5", "Qt", "bin"),
