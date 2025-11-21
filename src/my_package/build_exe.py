@@ -227,8 +227,32 @@ def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
             dist_dir / f"resources/{resource_name}",
         ):
             target.parent.mkdir(parents=True, exist_ok=True)
-            if not target.exists():
-                target.write_bytes(src.read_bytes())
+        if not target.exists():
+            target.write_bytes(src.read_bytes())
+
+
+def _prepare_ascii_entry_point() -> Path:
+    """Создать временный entry-point без кириллицы для PyInstaller.
+
+    На некоторых системах PyInstaller падает, если скрипт запуска или имя exe
+    содержат не-ASCII символы. Чтобы избежать сбоев при сборке, создаём
+    вспомогательный скрипт с безопасным именем в каталоге ``build`` и указываем
+    его PyInstaller вместо оригинального файла с кириллицей.
+    """
+
+    wrapper_path = BUILD_DIR / "app_entry.py"
+    wrapper_code = f"""import pathlib, runpy, sys
+
+ENTRY = pathlib.Path(r"{ENTRY_POINT}")
+
+if not ENTRY.exists():
+    raise FileNotFoundError(f"Не найден основной скрипт: {ENTRY}")
+
+runpy.run_path(str(ENTRY), run_name='__main__')
+"""
+
+    wrapper_path.write_text(wrapper_code, encoding="utf-8")
+    return wrapper_path
 
 
 def build():
@@ -269,6 +293,10 @@ def build():
     data_args.extend(qt_data_args)
     binary_args.extend(qt_binary_args)
 
+    # PyInstaller может некорректно обрабатывать пути с кириллицей. Передаем
+    # обертку с латинским именем, чтобы исключить ошибки кодировки.
+    entry_point = _prepare_ascii_entry_point()
+
     args = [
         "--noconfirm",
         "--clean",
@@ -289,13 +317,20 @@ def build():
         args.append(f"--exclude-module={module}")
 
     args += data_args + binary_args
-    args.append(str(ENTRY_POINT))
+    args.append(str(entry_point))
 
     pyinstaller_run(args)
 
     # Дополнительная страховка: если PyInstaller не разложил WebEngine,
     # продублируем файлы напрямую в dist.
     _ensure_webengine_in_dist(layout, dist_dir)
+
+    # Чистим вспомогательный entry-point, чтобы не оставлять временный
+    # файл между сборками и не путать PyInstaller при следующем запуске.
+    try:
+        entry_point.unlink()
+    except OSError:
+        pass
 
 
 if __name__ == "__main__":
