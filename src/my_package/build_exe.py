@@ -222,6 +222,16 @@ def _gather_qt_resources(layout: QtLayout) -> tuple[list[str], list[str]]:
     # add a fallback copy near the root to satisfy runtime lookups in some environments
     binary_args.extend(_as_binary_arg(layout.webengine_process, "."))
 
+    # QtWebEngineProcess нуждается в Qt5* DLL рядом с собой на целевом компьютере.
+    # PyInstaller складывает большинство DLL рядом с основным exe, но при переносе
+    # на другую машину QtWebEngineProcess может не найти их в подпапке bin/libexec.
+    bin_pattern = "*.dll" if os.name == "nt" else "*.so*"
+    for bin_file in layout.bin_dir.glob(bin_pattern):
+        # Кладём копию прямо в bin внутри PyQt5/Qt5...
+        binary_args.extend(_as_binary_arg(bin_file, f"PyQt5/{qt_dir_name}/bin"))
+        # ...и дублируем рядом с главным exe на случай, если процесс ищет в PATH.
+        binary_args.extend(_as_binary_arg(bin_file, "."))
+
     for resource_name in (
         "icudtl.dat",
         "qtwebengine_resources.pak",
@@ -309,6 +319,21 @@ def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
             target.parent.mkdir(parents=True, exist_ok=True)
             if not target.exists():
                 target.write_bytes(src.read_bytes())
+
+    # Копируем Qt5*.dll в dist, чтобы QtWebEngineProcess мог стартовать на чистой
+    # машине без установленного Qt.
+    bin_pattern = "*.dll" if os.name == "nt" else "*.so*"
+    dll_targets = [
+        dist_dir / f"PyQt5/{qt_dir_name}/bin",
+        dist_dir,
+    ]
+
+    for bin_file in layout.bin_dir.glob(bin_pattern):
+        for target_dir in dll_targets:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            dest = target_dir / bin_file.name
+            if not dest.exists():
+                dest.write_bytes(bin_file.read_bytes())
 
     locales_candidates = [
         layout.resources_dir / "qtwebengine_locales",
