@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from pathlib import Path
 
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false;qt.css.*=false")
 
@@ -204,16 +205,14 @@ except ImportError as exc:
     print("Make sure PyQt5 and PyQtWebEngine are installed in your virtual environment!")
     sys.exit(1)
 
-from config import DATA_DIR  # noqa: E402
+from config import DATA_DIR, RESOURCES_DIR  # noqa: E402
 from data_manager import DataManager  # noqa: E402
 from map_app import MapApp  # noqa: E402
 
 
 def ensure_offline_assets():
-    assets_dir = os.path.join(os.path.dirname(__file__), "html_templates", "assets", "leaflet")
-    if os.path.exists(os.path.join(assets_dir, "leaflet.css")) and os.path.exists(
-        os.path.join(assets_dir, "leaflet.js")
-    ):
+    assets_dir = Path(RESOURCES_DIR) / "assets" / "leaflet"
+    if (assets_dir / "leaflet.css").exists() and (assets_dir / "leaflet.js").exists():
         return
 
     try:

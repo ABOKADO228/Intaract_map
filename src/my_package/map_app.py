@@ -253,7 +253,7 @@ QPushButton:pressed {
                 "/* {{POINTS_DATA}} */", f"var initialMarkerData = {points_json};"
             )
 
-            base_url = QUrl.fromLocalFile(str(RESOURCES_DIR) + "/")
+            base_url = QUrl.fromLocalFile(str(Path(RESOURCES_DIR).resolve()) + "/")
             self.map_view.setHtml(html_content, base_url)
             self.map_view.loadFinished.connect(self.on_map_loaded)
 
@@ -263,7 +263,7 @@ QPushButton:pressed {
 
     def read_file(self, filename):
         try:
-            file_path = os.path.join(RESOURCES_DIR, filename)
+            file_path = Path(RESOURCES_DIR) / filename
             with open(file_path, "r", encoding="utf-8") as handle:
                 return handle.read()
         except Exception as exc:

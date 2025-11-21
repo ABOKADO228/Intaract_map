@@ -3,6 +3,7 @@ import binascii
 import json
 import os
 import uuid
+from pathlib import Path
 
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QUrl
 from PyQt5.QtWebChannel import QWebChannel
@@ -37,7 +38,8 @@ class DialogBridge(QObject):
 
                     base_name, extension = os.path.splitext(file_name)
                     unique_name = f"{base_name}_{uuid.uuid4().hex[:8]}{extension}"
-                    file_path = os.path.join(FILE_DIR, unique_name)
+                    file_path = Path(FILE_DIR) / unique_name
+                    file_path.parent.mkdir(parents=True, exist_ok=True)
                     with open(file_path, "wb") as handle:
                         handle.write(file_bytes)
 
@@ -81,11 +83,11 @@ class DialogWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка", "Не удалось загрузить шаблон ввода")
             return
 
-        self.form.setHtml(html_template, QUrl.fromLocalFile(str(RESOURCES_DIR) + "/"))
+        self.form.setHtml(html_template, QUrl.fromLocalFile(str(Path(RESOURCES_DIR).resolve()) + "/"))
 
     def read_file(self, filename):
         try:
-            file_path = os.path.join(RESOURCES_DIR, filename)
+            file_path = Path(RESOURCES_DIR) / filename
             with open(file_path, "r", encoding="utf-8") as handle:
                 return handle.read()
         except Exception as exc:
