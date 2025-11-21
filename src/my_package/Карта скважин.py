@@ -163,10 +163,13 @@ def setup_qt_webengine():
 
     webengine_process = _first_existing(process_candidates)
     if webengine_process:
-        os.environ["QTWEBENGINEPROCESS_PATH"] = webengine_process
+        os.environ["QTWEBENGINEPROCESS_PATH"] = str(webengine_process)
         logger.info("Set QTWEBENGINEPROCESS_PATH: %s", webengine_process)
     else:
-        logger.error("QtWebEngineProcess.exe not found in any of: %s", ", ".join(process_candidates))
+        logger.error(
+            "QtWebEngineProcess.exe not found in any of: %s",
+            ", ".join(map(str, process_candidates)),
+        )
 
     resource_candidates = [
         base_path / "resources",
@@ -176,10 +179,13 @@ def setup_qt_webengine():
 
     resources_path = _first_existing(resource_candidates)
     if resources_path:
-        os.environ["QTWEBENGINE_RESOURCES_PATH"] = resources_path
+        os.environ["QTWEBENGINE_RESOURCES_PATH"] = str(resources_path)
         logger.info("Set QTWEBENGINE_RESOURCES_PATH: %s", resources_path)
     else:
-        logger.error("Qt WebEngine resources not found in any of: %s", ", ".join(resource_candidates))
+        logger.error(
+            "Qt WebEngine resources not found in any of: %s",
+            ", ".join(map(str, resource_candidates)),
+        )
 
     bin_candidates = [
         base_path / "bin",
@@ -187,10 +193,13 @@ def setup_qt_webengine():
         base_path / "PyQt5" / "Qt5" / "bin",
     ]
 
+    current_path = os.environ.get("PATH") or ""
     for bin_path in bin_candidates:
-        if os.path.exists(bin_path) and str(bin_path) not in os.environ["PATH"]:
-            os.environ["PATH"] = str(bin_path) + os.pathsep + os.environ["PATH"]
+        if os.path.exists(bin_path) and str(bin_path) not in current_path:
+            current_path = str(bin_path) + os.pathsep + current_path
             logger.info("Added to PATH: %s", bin_path)
+
+    os.environ["PATH"] = current_path
 
     return True
 
