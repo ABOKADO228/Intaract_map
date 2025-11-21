@@ -1,7 +1,9 @@
 import json
 import os
+import sys
+from pathlib import Path
 
-from PyQt5.QtCore import QUrl
+from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtWidgets import (
@@ -28,6 +30,28 @@ from config import RESOURCES_DIR
 from dialog import DialogWindow
 from download_thread import DownloadThread
 from tile_manager import TileManager
+
+
+def _configure_webengine_process_path():
+    """Установить путь до QtWebEngineProcess, если он был упакован PyInstaller."""
+
+    base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    process_name = "QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"
+    candidates = [
+        base_dir / process_name,
+        base_dir / "PyQt5" / "Qt" / "bin" / process_name,
+        base_dir / "PyQt5" / "Qt" / "libexec" / process_name,
+        base_dir / "PyQt5" / "Qt5" / "bin" / process_name,
+        base_dir / "PyQt5" / "Qt5" / "libexec" / process_name,
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            os.environ.setdefault("QTWEBENGINEPROCESS_PATH", str(candidate))
+            break
+
+
+_configure_webengine_process_path()
 
 
 class MapApp(QMainWindow):
@@ -104,6 +128,7 @@ class MapApp(QMainWindow):
         for btn in buttons:
             btn.setMinimumHeight(35)
             btn.setMinimumWidth(160)
+            btn.setCursor(Qt.PointingHandCursor)
             btn.setStyleSheet(
                 """
 QPushButton {
@@ -112,9 +137,7 @@ QPushButton {
     color: white;
     border: none;
     border-radius: 6px;
-    cursor: pointer;
     font-weight: bold;
-    transition: background 0.2s;
 }
 QPushButton:hover {
     background-color: #2980b9;
@@ -209,10 +232,8 @@ QPushButton:pressed {
                     color: white;
                     border: none;
                     border-radius: 6px;
-                    cursor: pointer;
                     font-weight: bold;
                     width: 100%;
-                    transition: background 0.2s;
                 }
                 QPushButton:hover {
                     background-color: #2980b9;
@@ -234,10 +255,8 @@ QPushButton:pressed {
                     color: white;
                     border: none;
                     border-radius: 6px;
-                    cursor: pointer;
                     font-weight: bold;
                     width: 100%;
-                    transition: background 0.2s;
                 }
                 QPushButton:hover {
                     background-color: #2980b9;
@@ -310,13 +329,24 @@ QPushButton:pressed {
             file_count = len(point.get("fileNames", []))
             file_text = f" с {file_count} файлами" if file_count > 0 else ""
 
-            reply = QMessageBox.question(
+            first_reply = QMessageBox.question(
                 self,
                 "Подтверждение",
                 f"Вы действительно хотите удалить точку '{point['name']}'{file_text}?",
                 QMessageBox.Yes | QMessageBox.No,
             )
-            if reply == QMessageBox.Yes:
+
+            if first_reply != QMessageBox.Yes:
+                return
+
+            second_reply = QMessageBox.question(
+                self,
+                "Подтверждение удаления",
+                "Это действие необратимо. Удалить точку окончательно?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+
+            if second_reply == QMessageBox.Yes:
                 self.data_manager.remove_point(point_id)
                 self.map_view.page().runJavaScript(f"removeMarker('{point_id}');")
                 self.statusBar().showMessage(f"Точка '{point['name']}' удалена")

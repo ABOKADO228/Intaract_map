@@ -2,15 +2,37 @@ import logging
 import os
 import sys
 
+os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false;qt.css.*=false")
+
 
 def set_qt_plugin_path():
     if getattr(sys, "frozen", False):
         base_path = sys._MEIPASS
-        qt_plugin_path = os.path.join(base_path, "qt5_plugins").replace("\\", "/")
-        os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = qt_plugin_path
+        plugin_candidates = [
+            os.path.join(base_path, "qt5_plugins"),
+            os.path.join(base_path, "plugins"),
+            os.path.join(base_path, "PyQt5", "Qt", "plugins"),
+            os.path.join(base_path, "PyQt5", "Qt5", "plugins"),
+        ]
 
-        webengine_process_path = os.path.join(base_path, "bin", "QtWebEngineProcess.exe").replace("\\", "/")
-        os.environ["QTWEBENGINEPROCESS_PATH"] = webengine_process_path
+        for candidate in plugin_candidates:
+            if os.path.isdir(candidate):
+                os.environ["QT_QPA_PLATFORM_PLUGIN_PATH"] = candidate.replace("\\", "/")
+                break
+
+        process_candidates = [
+            os.path.join(base_path, "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt", "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt", "libexec", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt5", "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt5", "libexec", "QtWebEngineProcess.exe"),
+        ]
+
+        for process_path in process_candidates:
+            if os.path.exists(process_path):
+                os.environ["QTWEBENGINEPROCESS_PATH"] = process_path.replace("\\", "/")
+                break
 
 
 def setup_qt_paths():
@@ -21,20 +43,42 @@ def setup_qt_paths():
             os.path.join(base_path, "bin"),
             os.path.join(base_path, "plugins"),
             os.path.join(base_path, "resources"),
+            os.path.join(base_path, "PyQt5", "Qt", "bin"),
+            os.path.join(base_path, "PyQt5", "Qt5", "bin"),
         ]
 
         for path in qt_paths:
             if os.path.exists(path) and path not in os.environ["PATH"]:
                 os.environ["PATH"] = path + os.pathsep + os.environ["PATH"]
 
-        webengine_process = os.path.join(base_path, "QtWebEngineProcess.exe")
-        if os.path.exists(webengine_process):
-            os.environ["QTWEBENGINEPROCESS_PATH"] = webengine_process
+        process_candidates = [
+            os.path.join(base_path, "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt", "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt", "libexec", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt5", "bin", "QtWebEngineProcess.exe"),
+            os.path.join(base_path, "PyQt5", "Qt5", "libexec", "QtWebEngineProcess.exe"),
+        ]
+
+        for webengine_process in process_candidates:
+            if os.path.exists(webengine_process):
+                os.environ["QTWEBENGINEPROCESS_PATH"] = webengine_process
+                break
 
         os.environ["QTWEBENGINE_RESOURCES_PATH"] = os.path.join(base_path, "resources")
 
 
 def debug_qt_paths():
+    """Печать отладочной информации Qt (по умолчанию только в frozen-сборке)."""
+
+    if not getattr(sys, "frozen", False) and os.environ.get("QT_DEBUG_INFO", "").lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return
+
     print("=== QT DEBUG INFO ===")
     print("Frozen:", getattr(sys, "frozen", False))
 
@@ -79,6 +123,12 @@ def setup_qt_webengine():
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
+    def _first_existing(paths):
+        for item in paths:
+            if os.path.exists(item):
+                return item
+        return None
+
     if getattr(sys, "frozen", False):
         base_path = sys._MEIPASS
         logger.info("Running in frozen mode, MEIPASS: %s", base_path)
@@ -92,23 +142,45 @@ def setup_qt_webengine():
             logger.error("PyQt5 not found in virtual environment!")
             return False
 
-    webengine_process = os.path.join(base_path, "bin", "QtWebEngineProcess.exe")
-    resources_path = os.path.join(base_path, "resources")
+    process_candidates = [
+        os.path.join(base_path, "QtWebEngineProcess.exe"),
+        os.path.join(base_path, "bin", "QtWebEngineProcess.exe"),
+        os.path.join(base_path, "PyQt5", "Qt", "bin", "QtWebEngineProcess.exe"),
+        os.path.join(base_path, "PyQt5", "Qt", "libexec", "QtWebEngineProcess.exe"),
+        os.path.join(base_path, "PyQt5", "Qt5", "bin", "QtWebEngineProcess.exe"),
+        os.path.join(base_path, "PyQt5", "Qt5", "libexec", "QtWebEngineProcess.exe"),
+    ]
 
-    if os.path.exists(webengine_process):
+    webengine_process = _first_existing(process_candidates)
+    if webengine_process:
         os.environ["QTWEBENGINEPROCESS_PATH"] = webengine_process
         logger.info("Set QTWEBENGINEPROCESS_PATH: %s", webengine_process)
     else:
-        logger.warning("QtWebEngineProcess.exe not found at: %s", webengine_process)
+        logger.error("QtWebEngineProcess.exe not found in any of: %s", ", ".join(process_candidates))
 
-    if os.path.exists(resources_path):
+    resource_candidates = [
+        os.path.join(base_path, "resources"),
+        os.path.join(base_path, "PyQt5", "Qt", "resources"),
+        os.path.join(base_path, "PyQt5", "Qt5", "resources"),
+    ]
+
+    resources_path = _first_existing(resource_candidates)
+    if resources_path:
         os.environ["QTWEBENGINE_RESOURCES_PATH"] = resources_path
         logger.info("Set QTWEBENGINE_RESOURCES_PATH: %s", resources_path)
+    else:
+        logger.error("Qt WebEngine resources not found in any of: %s", ", ".join(resource_candidates))
 
-    bin_path = os.path.join(base_path, "bin")
-    if os.path.exists(bin_path) and bin_path not in os.environ["PATH"]:
-        os.environ["PATH"] = bin_path + os.pathsep + os.environ["PATH"]
-        logger.info("Added to PATH: %s", bin_path)
+    bin_candidates = [
+        os.path.join(base_path, "bin"),
+        os.path.join(base_path, "PyQt5", "Qt", "bin"),
+        os.path.join(base_path, "PyQt5", "Qt5", "bin"),
+    ]
+
+    for bin_path in bin_candidates:
+        if os.path.exists(bin_path) and bin_path not in os.environ["PATH"]:
+            os.environ["PATH"] = bin_path + os.pathsep + os.environ["PATH"]
+            logger.info("Added to PATH: %s", bin_path)
 
     return True
 
@@ -138,12 +210,16 @@ from map_app import MapApp  # noqa: E402
 
 
 def ensure_offline_assets():
+    assets_dir = os.path.join(os.path.dirname(__file__), "html_templates", "assets", "leaflet")
+    if os.path.exists(os.path.join(assets_dir, "leaflet.css")) and os.path.exists(
+        os.path.join(assets_dir, "leaflet.js")
+    ):
+        return
+
     try:
         import create_offline_assets
 
-        print("Создание офлайн-ассетов...")
         create_offline_assets.create_offline_assets()
-        print("Офлайн-ассеты созданы успешно")
     except Exception as exc:
         print(f"Ошибка создания ассетов: {exc}")
 
