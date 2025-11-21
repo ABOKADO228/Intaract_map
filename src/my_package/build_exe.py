@@ -227,8 +227,8 @@ def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
             dist_dir / f"resources/{resource_name}",
         ):
             target.parent.mkdir(parents=True, exist_ok=True)
-        if not target.exists():
-            target.write_bytes(src.read_bytes())
+            if not target.exists():
+                target.write_bytes(src.read_bytes())
 
 
 def _prepare_ascii_entry_point() -> Path:
