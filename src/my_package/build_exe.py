@@ -424,20 +424,19 @@ def _runtime_bases() -> list[Path]:
 
 
 def _resolve_entry() -> Path:
-    last_candidate: Path | None = None
+    # Определяем путь, который будет подставлен в __file__ основного модуля.
+    # Ранее мы пытались проверять наличие файла и читали его содержимое, что
+    # приводило к PermissionError на некоторых машинах при переносе папки dist.
+    # Теперь путь используется только как метка для __file__, а исполняемый код
+    # всегда берётся из встроенной Base64-строки, поэтому обращений к файловой
+    # системе здесь нет.
 
-    for base in _runtime_bases():
-        candidate = base / ENTRY_NAME
-        last_candidate = candidate
-        try:
-            if candidate.exists():
-                return candidate
-        except Exception as exc:  # pragma: no cover - runtime guard
-            _log_failure(f"Не удалось проверить {candidate}", exc)
+    bases = _runtime_bases()
+    if bases:
+        return bases[0] / ENTRY_NAME
 
-    # Если ничего не нашли или проверка прав упала, возвращаем последний кандидат
-    # (обычно рядом с exe), чтобы __file__ выглядел предсказуемо.
-    return last_candidate or Path(ENTRY_NAME)
+    # Запасной вариант, если список баз пуст
+    return Path(ENTRY_NAME)
 
 
 def _log_failure(message: str, exc: BaseException | None = None) -> None:
@@ -479,12 +478,9 @@ def _run_entry(entry: Path) -> None:
 
 def main() -> None:
     entry = _resolve_entry()
-    if not entry:
-        _log_failure(f"Не найден основной скрипт: {ENTRY_NAME}")
-        sys.exit(1)
 
     try:
-        _log_failure(f"Запуск основного скрипта: {entry}")
+        _log_failure(f"Запуск основного скрипта (встроенный код): {entry}")
         _run_entry(entry)
     except Exception as exc:  # pragma: no cover - runtime guard
         _log_failure("Ошибка при запуске приложения", exc)
