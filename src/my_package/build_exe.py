@@ -166,6 +166,7 @@ class QtLayout:
     libexec_dir: Path
     resources_dir: Path
     translations_dir: Path
+    plugins_dir: Path
     webengine_process: Path
 
     @property
@@ -184,6 +185,7 @@ def _discover_qt_layout() -> QtLayout:
     libexec_dir = qt_path / "libexec"
     resources_dir = qt_path / "resources"
     translations_dir = qt_path / "translations"
+    plugins_dir = qt_path / "plugins"
 
     process_candidates = [
         bin_dir / ("QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"),
@@ -204,6 +206,7 @@ def _discover_qt_layout() -> QtLayout:
         libexec_dir=libexec_dir,
         resources_dir=resources_dir,
         translations_dir=translations_dir,
+        plugins_dir=plugins_dir,
         webengine_process=webengine_process,
     )
 
@@ -244,6 +247,20 @@ def _gather_qt_resources(layout: QtLayout) -> tuple[list[str], list[str]]:
             )
             data_args.extend(_as_data_arg(locale_dir, "resources/qtwebengine_locales"))
             data_args.extend(_as_data_arg(locale_dir, "qtwebengine_locales"))
+
+    # Qt плагины (platforms, imageformats и др.) требуются на целевых машинах, где
+    # Qt не установлен. Копируем целиком каталоги, чтобы не упустить зависимости.
+    if layout.plugins_dir.exists():
+        for plugin_subdir in layout.plugins_dir.iterdir():
+            if plugin_subdir.is_dir():
+                rel_target = f"PyQt5/{qt_dir_name}/plugins/{plugin_subdir.name}"
+                data_args.extend(_as_data_arg(plugin_subdir, rel_target))
+
+    # Общие переводы Qt (не только WebEngine) могут понадобиться в рантайме.
+    if layout.translations_dir.exists():
+        data_args.extend(
+            _as_data_arg(layout.translations_dir, f"PyQt5/{qt_dir_name}/translations")
+        )
 
     spec = importlib.util.find_spec("PyQt5.QtWebEngineWidgets")
     if spec and spec.submodule_search_locations:
@@ -312,6 +329,30 @@ def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
                 dest = target / file.name
                 if not dest.exists():
                     dest.write_bytes(file.read_bytes())
+
+    # Страховка: копируем каталоги плагинов Qt и переводы прямо в dist. Это помогает,
+    # если PyInstaller не разложил их корректно или если системный Qt отсутствует.
+    if layout.plugins_dir.exists():
+        plugins_target_root = dist_dir / f"PyQt5/{qt_dir_name}/plugins"
+        for plugin_subdir in layout.plugins_dir.iterdir():
+            if not plugin_subdir.is_dir():
+                continue
+
+            target_dir = plugins_target_root / plugin_subdir.name
+            for src_file in plugin_subdir.glob("*"):
+                if src_file.is_file():
+                    target_dir.mkdir(parents=True, exist_ok=True)
+                    dest = target_dir / src_file.name
+                    if not dest.exists():
+                        dest.write_bytes(src_file.read_bytes())
+
+    if layout.translations_dir.exists():
+        translations_target = dist_dir / f"PyQt5/{qt_dir_name}/translations"
+        translations_target.mkdir(parents=True, exist_ok=True)
+        for src_file in layout.translations_dir.glob("*.qm"):
+            dest = translations_target / src_file.name
+            if not dest.exists():
+                dest.write_bytes(src_file.read_bytes())
 
 
 def _prepare_ascii_entry_point() -> Path:
