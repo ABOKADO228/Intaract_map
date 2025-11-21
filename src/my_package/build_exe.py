@@ -423,12 +423,21 @@ def _runtime_bases() -> list[Path]:
     return bases
 
 
-def _resolve_entry() -> Path | None:
+def _resolve_entry() -> Path:
+    last_candidate: Path | None = None
+
     for base in _runtime_bases():
         candidate = base / ENTRY_NAME
-        if candidate.exists():
-            return candidate
-    return None
+        last_candidate = candidate
+        try:
+            if candidate.exists():
+                return candidate
+        except Exception as exc:  # pragma: no cover - runtime guard
+            _log_failure(f"Не удалось проверить {candidate}", exc)
+
+    # Если ничего не нашли или проверка прав упала, возвращаем последний кандидат
+    # (обычно рядом с exe), чтобы __file__ выглядел предсказуемо.
+    return last_candidate or Path(ENTRY_NAME)
 
 
 def _log_failure(message: str, exc: BaseException | None = None) -> None:
