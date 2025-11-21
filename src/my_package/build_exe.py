@@ -435,7 +435,10 @@ def _log_failure(message: str, exc: BaseException | None = None) -> None:
 
     try:
         with log_target.open("a", encoding="utf-8") as log:
-            log.write(message + "\n")
+            # Используем «\\n», чтобы в сгенерированном файле сохранилась
+            # последовательность обратного слэша, а не реальный перенос строки
+            # внутри строкового литерала.
+            log.write(message + "\\n")
             if exc:
                 traceback.print_exception(exc.__class__, exc, exc.__traceback__, file=log)
     except Exception:
