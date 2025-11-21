@@ -58,26 +58,61 @@ def _configure_webengine_process_path():
             break
 
 
+def _frozen_base_candidates() -> list[Path]:
+    """Кандидаты базовых путей для упакованного приложения.
+
+    В режиме onedir PyInstaller располагает зависимости рядом с exe или в
+    подпапке ``_internal``. В режиме onefile используется ``_MEIPASS``. Чтобы
+    покрыть оба варианта, возвращаем список возможных корней для поиска
+    ресурсов QtWebEngine.
+    """
+
+    candidates: list[Path] = []
+
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass))
+
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.append(exe_dir)
+        candidates.append(exe_dir / "_internal")
+
+    candidates.append(Path(__file__).resolve().parent)
+    return candidates
+
+
 def _configure_webengine_resources():
     """Указать Qt путь к ресурсам и локалям WebEngine из упакованной папки."""
 
-    base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    base_candidates = _frozen_base_candidates()
 
-    resource_candidates = [
-        base_dir / "resources",
-        base_dir / "PyQt5" / "Qt5" / "resources",
-        base_dir / "PyQt5" / "Qt" / "resources",
-        base_dir,
-    ]
+    resource_candidates: list[Path] = []
+    locale_candidates: list[Path] = []
 
-    locale_candidates = [
-        base_dir / "resources" / "qtwebengine_locales",
-        base_dir / "qtwebengine_locales",
-        base_dir / "PyQt5" / "Qt5" / "resources" / "qtwebengine_locales",
-        base_dir / "PyQt5" / "Qt" / "resources" / "qtwebengine_locales",
-        base_dir / "PyQt5" / "Qt5" / "translations" / "qtwebengine_locales",
-        base_dir / "PyQt5" / "Qt" / "translations" / "qtwebengine_locales",
-    ]
+    for base_dir in base_candidates:
+        resource_candidates.extend(
+            [
+                base_dir / "resources",
+                base_dir / "PyQt5" / "Qt5" / "resources",
+                base_dir / "PyQt5" / "Qt" / "resources",
+                base_dir / "PyQt6" / "Qt6" / "resources",
+                base_dir,
+            ]
+        )
+
+        locale_candidates.extend(
+            [
+                base_dir / "resources" / "qtwebengine_locales",
+                base_dir / "qtwebengine_locales",
+                base_dir / "PyQt5" / "Qt5" / "resources" / "qtwebengine_locales",
+                base_dir / "PyQt5" / "Qt" / "resources" / "qtwebengine_locales",
+                base_dir / "PyQt5" / "Qt5" / "translations" / "qtwebengine_locales",
+                base_dir / "PyQt5" / "Qt" / "translations" / "qtwebengine_locales",
+                base_dir / "PyQt6" / "Qt6" / "resources" / "qtwebengine_locales",
+                base_dir / "PyQt6" / "Qt6" / "translations" / "qtwebengine_locales",
+            ]
+        )
 
     if "QTWEBENGINE_RESOURCES_PATH" not in os.environ:
         resources_dir = _first_existing(
