@@ -480,7 +480,11 @@ def main() -> None:
     entry = _resolve_entry()
 
     try:
-        _log_failure(f"Запуск основного скрипта (встроенный код): {entry}")
+        # Двойные фигурные скобки нужны, чтобы метод .format(), который
+        # подставляет base64-строку ниже, не пытался интерполировать
+        # переменную ``entry`` на этапе генерации обёртки. Одинарные скобки
+        # привели бы к KeyError: 'entry' при сборке.
+        _log_failure(f"Запуск основного скрипта (встроенный код): {{entry}}")
         _run_entry(entry)
     except Exception as exc:  # pragma: no cover - runtime guard
         _log_failure("Ошибка при запуске приложения", exc)
