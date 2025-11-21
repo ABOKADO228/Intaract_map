@@ -390,13 +390,76 @@ def _prepare_ascii_entry_point() -> Path:
     """
 
     wrapper_path = BUILD_DIR / "app_entry.py"
-    wrapper_code = (
-        "import pathlib, runpy\n\n"
-        f"ENTRY = pathlib.Path(r\"{ENTRY_POINT}\")\n\n"
-        "if not ENTRY.exists():\n"
-        "    raise FileNotFoundError(f\"Не найден основной скрипт: {ENTRY}\")\n\n"
-        "runpy.run_path(str(ENTRY), run_name='__main__')\n"
+    wrapper_code = """
+import runpy
+import sys
+import traceback
+from pathlib import Path
+
+ENTRY_NAME = "Карта скважин.py"
+
+
+def _runtime_bases() -> list[Path]:
+    bases: list[Path] = []
+
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            bases.append(Path(meipass))
+
+        exe_dir = Path(sys.executable).resolve().parent
+        bases.append(exe_dir)
+        bases.append(exe_dir / "_internal")
+
+    script_dir = Path(__file__).resolve().parent
+    bases.append(script_dir)
+    bases.append(script_dir.parent)
+
+    return bases
+
+
+def _resolve_entry() -> Path | None:
+    for base in _runtime_bases():
+        candidate = base / ENTRY_NAME
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _log_failure(message: str, exc: BaseException | None = None) -> None:
+    log_target = (
+        Path(sys.executable).with_suffix(".log")
+        if getattr(sys, "frozen", False)
+        else Path(__file__).with_suffix(".log")
     )
+
+    try:
+        with log_target.open("a", encoding="utf-8") as log:
+            log.write(message + "\n")
+            if exc:
+                traceback.print_exception(exc.__class__, exc, exc.__traceback__, file=log)
+    except Exception:
+        pass
+
+    print(message)
+
+
+def main() -> None:
+    entry = _resolve_entry()
+    if not entry:
+        _log_failure(f"Не найден основной скрипт: {ENTRY_NAME}")
+        sys.exit(1)
+
+    try:
+        runpy.run_path(str(entry), run_name="__main__")
+    except Exception as exc:  # pragma: no cover - runtime guard
+        _log_failure("Ошибка при запуске приложения", exc)
+        raise
+
+
+if __name__ == "__main__":
+    main()
+"""
 
     wrapper_path.write_text(wrapper_code, encoding="utf-8")
     return wrapper_path
@@ -435,6 +498,9 @@ def build():
     # Пользовательские ресурсы приложения
     data_args.extend(_as_data_arg(BASE_DIR / "html_templates", "html_templates"))
     data_args.extend(_as_data_arg(BASE_DIR / "data", "data"))
+    # Основной скрипт с кириллицей кладём в корень dist, чтобы рантайм-обёртка
+    # могла найти его после переноса на другой компьютер.
+    data_args.extend(_as_data_arg(ENTRY_POINT, ENTRY_POINT.name))
 
     qt_data_args, qt_binary_args = _gather_qt_resources(layout)
     data_args.extend(qt_data_args)
