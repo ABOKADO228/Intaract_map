@@ -165,6 +165,7 @@ class QtLayout:
     bin_dir: Path
     libexec_dir: Path
     resources_dir: Path
+    translations_dir: Path
     webengine_process: Path
 
     @property
@@ -182,6 +183,7 @@ def _discover_qt_layout() -> QtLayout:
     bin_dir = qt_path / "bin"
     libexec_dir = qt_path / "libexec"
     resources_dir = qt_path / "resources"
+    translations_dir = qt_path / "translations"
 
     process_candidates = [
         bin_dir / ("QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"),
@@ -201,6 +203,7 @@ def _discover_qt_layout() -> QtLayout:
         bin_dir=bin_dir,
         libexec_dir=libexec_dir,
         resources_dir=resources_dir,
+        translations_dir=translations_dir,
         webengine_process=webengine_process,
     )
 
@@ -227,6 +230,20 @@ def _gather_qt_resources(layout: QtLayout) -> tuple[list[str], list[str]]:
             data_args.extend(_as_data_arg(resource_path, f"PyQt5/{qt_dir_name}/resources"))
             # duplicate in top-level resources to match runtime search paths
             data_args.extend(_as_data_arg(resource_path, "resources"))
+            # and near the executable for fallback lookups
+            data_args.extend(_as_data_arg(resource_path, "."))
+
+    # локали QtWebEngine ищутся в resources/qtwebengine_locales или translations/qtwebengine_locales
+    for locale_dir in (
+        layout.resources_dir / "qtwebengine_locales",
+        layout.translations_dir / "qtwebengine_locales",
+    ):
+        if locale_dir.exists():
+            data_args.extend(
+                _as_data_arg(locale_dir, f"PyQt5/{qt_dir_name}/resources/qtwebengine_locales")
+            )
+            data_args.extend(_as_data_arg(locale_dir, "resources/qtwebengine_locales"))
+            data_args.extend(_as_data_arg(locale_dir, "qtwebengine_locales"))
 
     spec = importlib.util.find_spec("PyQt5.QtWebEngineWidgets")
     if spec and spec.submodule_search_locations:
@@ -270,10 +287,31 @@ def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
         for target in (
             dist_dir / f"PyQt5/{qt_dir_name}/resources/{resource_name}",
             dist_dir / f"resources/{resource_name}",
+            dist_dir / resource_name,
         ):
             target.parent.mkdir(parents=True, exist_ok=True)
             if not target.exists():
                 target.write_bytes(src.read_bytes())
+
+    locales_candidates = [
+        layout.resources_dir / "qtwebengine_locales",
+        layout.translations_dir / "qtwebengine_locales",
+    ]
+
+    for src_dir in locales_candidates:
+        if not src_dir.exists():
+            continue
+
+        for target in (
+            dist_dir / f"PyQt5/{qt_dir_name}/resources/qtwebengine_locales",
+            dist_dir / "resources/qtwebengine_locales",
+            dist_dir / "qtwebengine_locales",
+        ):
+            target.mkdir(parents=True, exist_ok=True)
+            for file in src_dir.glob("*.pak"):
+                dest = target / file.name
+                if not dest.exists():
+                    dest.write_bytes(file.read_bytes())
 
 
 def _prepare_ascii_entry_point() -> Path:
