@@ -1,3 +1,4 @@
+import base64
 import importlib.util
 import os
 import shutil
@@ -390,13 +391,17 @@ def _prepare_ascii_entry_point() -> Path:
     """
 
     wrapper_path = BUILD_DIR / "app_entry.py"
+    entry_source = ENTRY_POINT.read_text(encoding="utf-8")
+
     wrapper_code = """
 import sys
 import types
 import traceback
+import base64
 from pathlib import Path
 
 ENTRY_NAME = "Карта скважин.py"
+ENTRY_SOURCE_B64 = "{entry_b64}"
 
 
 def _runtime_bases() -> list[Path]:
@@ -449,9 +454,10 @@ def _log_failure(message: str, exc: BaseException | None = None) -> None:
 
 def _run_entry(entry: Path) -> None:
     try:
-        code = entry.read_text(encoding="utf-8")
+        source_bytes = base64.b64decode(ENTRY_SOURCE_B64)
+        code = source_bytes.decode("utf-8")
     except Exception as exc:  # pragma: no cover - runtime guard
-        _log_failure(f"Не удалось прочитать {entry}: {exc}")
+        _log_failure("Не удалось декодировать встроенный скрипт", exc)
         raise
 
     module = types.ModuleType("__main__")
@@ -480,7 +486,10 @@ if __name__ == "__main__":
     main()
 """
 
-    wrapper_path.write_text(wrapper_code, encoding="utf-8")
+    wrapper_path.write_text(
+        wrapper_code.format(entry_b64=base64.b64encode(entry_source.encode("utf-8")).decode("ascii")),
+        encoding="utf-8",
+    )
     return wrapper_path
 
 
