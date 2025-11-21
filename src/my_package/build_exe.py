@@ -129,6 +129,20 @@ EXCLUDED_MODULES: list[str] = [
     "multiprocessing.get_start_method",
 ]
 
+# Модули приложения, которые PyInstaller не видит из обертки runpy.
+HIDDEN_IMPORTS: list[str] = [
+    "config",
+    "data_manager",
+    "map_app",
+    "download_thread",
+    "tile_manager",
+    "dialog",
+    "bridge",
+    "create_offline_assets",
+    "download_assets",
+    "generate_test_data",
+]
+
 
 def _as_data_arg(source: Path, target: str) -> list[str]:
     return ["--add-data", f"{source}{os.pathsep}{target}"]
@@ -344,6 +358,9 @@ def build():
 
     for module in EXCLUDED_MODULES:
         args.append(f"--exclude-module={module}")
+
+    for module in HIDDEN_IMPORTS:
+        args.append(f"--hidden-import={module}")
 
     args += data_args + binary_args
     args.append(str(entry_point))
