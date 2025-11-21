@@ -198,17 +198,8 @@ QPushButton:pressed {
         """Guarantee the JS side sees the registered bridge after each load."""
 
         script = """
-            if (typeof qt !== 'undefined' && qt.webChannelTransport) {
-                new QWebChannel(qt.webChannelTransport, function(channel) {
-                    if (typeof window.setBridge === 'function') {
-                        window.setBridge(channel.objects.bridge);
-                    } else {
-                        window.bridge = channel.objects.bridge;
-                    }
-                    if (typeof window.onBridgeReady === 'function') {
-                        window.onBridgeReady();
-                    }
-                });
+            if (typeof window.ensureWebChannel === 'function') {
+                window.ensureWebChannel();
             }
         """
         self.map_view.page().runJavaScript(script)
