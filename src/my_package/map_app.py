@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import (
 )
 
 from bridge import Bridge
-from config import RESOURCES_DIR
+from config import BASE_DIR, RESOURCES_DIR
 from dialog import DialogWindow
 from download_thread import DownloadThread
 from tile_manager import TileManager
@@ -39,10 +39,16 @@ def _first_existing(paths):
     return None
 
 
+def _runtime_base() -> Path:
+    """Корень ресурсов в рантайме (frozen или dev)."""
+
+    return Path(BASE_DIR)
+
+
 def _configure_webengine_process_path():
     """Установить путь до QtWebEngineProcess, если он был упакован PyInstaller."""
 
-    base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    base_dir = _runtime_base()
     process_name = "QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"
     candidates = [
         base_dir / process_name,
@@ -69,6 +75,9 @@ def _frozen_base_candidates() -> list[Path]:
 
     candidates: list[Path] = []
 
+    runtime_base = _runtime_base()
+    candidates.append(runtime_base)
+
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         candidates.append(Path(meipass))
@@ -78,7 +87,6 @@ def _frozen_base_candidates() -> list[Path]:
         candidates.append(exe_dir)
         candidates.append(exe_dir / "_internal")
 
-    candidates.append(Path(__file__).resolve().parent)
     return candidates
 
 
