@@ -32,6 +32,13 @@ from download_thread import DownloadThread
 from tile_manager import TileManager
 
 
+def _first_existing(paths):
+    for path in paths:
+        if path.exists():
+            return path
+    return None
+
+
 def _configure_webengine_process_path():
     """Установить путь до QtWebEngineProcess, если он был упакован PyInstaller."""
 
@@ -51,7 +58,44 @@ def _configure_webengine_process_path():
             break
 
 
+def _configure_webengine_resources():
+    """Указать Qt путь к ресурсам и локалям WebEngine из упакованной папки."""
+
+    base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+
+    resource_candidates = [
+        base_dir / "resources",
+        base_dir / "PyQt5" / "Qt5" / "resources",
+        base_dir / "PyQt5" / "Qt" / "resources",
+        base_dir,
+    ]
+
+    locale_candidates = [
+        base_dir / "resources" / "qtwebengine_locales",
+        base_dir / "qtwebengine_locales",
+        base_dir / "PyQt5" / "Qt5" / "resources" / "qtwebengine_locales",
+        base_dir / "PyQt5" / "Qt" / "resources" / "qtwebengine_locales",
+        base_dir / "PyQt5" / "Qt5" / "translations" / "qtwebengine_locales",
+        base_dir / "PyQt5" / "Qt" / "translations" / "qtwebengine_locales",
+    ]
+
+    if "QTWEBENGINE_RESOURCES_PATH" not in os.environ:
+        resources_dir = _first_existing(
+            [path for path in resource_candidates if (path / "qtwebengine_resources.pak").exists()]
+        )
+        if resources_dir:
+            os.environ["QTWEBENGINE_RESOURCES_PATH"] = str(resources_dir)
+
+    if "QTWEBENGINE_LOCALES_PATH" not in os.environ:
+        locales_dir = _first_existing(
+            [path for path in locale_candidates if path.exists() and any(path.glob("*.pak"))]
+        )
+        if locales_dir:
+            os.environ["QTWEBENGINE_LOCALES_PATH"] = str(locales_dir)
+
+
 _configure_webengine_process_path()
+_configure_webengine_resources()
 
 
 class MapApp(QMainWindow):
