@@ -151,6 +151,32 @@ def verify_build_outputs() -> list[CheckResult]:
         )
     )
 
+    resources_ok = all(
+        (DIST_DIR / "resources" / name).exists()
+        for name in (
+            "icudtl.dat",
+            "qtwebengine_resources.pak",
+        )
+    )
+
+    locales_ok = (DIST_DIR / "resources" / "qtwebengine_locales").exists()
+
+    checks.append(
+        CheckResult(
+            name="QtWebEngine ресурсы",
+            passed=resources_ok,
+            details="resources/* присутствуют" if resources_ok else "icudtl или pak-файлы не найдены",
+        )
+    )
+
+    checks.append(
+        CheckResult(
+            name="QtWebEngine локализация",
+            passed=locales_ok,
+            details="qtwebengine_locales найдена" if locales_ok else "каталог qtwebengine_locales не найден",
+        )
+    )
+
     warn_files = sorted(WARN_DIR.glob("warn-*.txt"))
     warn_lines: list[str] = []
     if warn_files:

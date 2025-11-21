@@ -188,6 +188,11 @@ def _gather_qt_resources(layout: QtLayout) -> tuple[list[str], list[str]]:
         for source, target in collect_data_files("PyQt5.QtWebEngineWidgets"):
             data_args.extend(_as_data_arg(Path(source), target))
 
+    locales_dir = layout.resources_dir / "qtwebengine_locales"
+    if locales_dir.exists():
+        data_args.extend(_as_data_arg(locales_dir, f"PyQt5/{qt_dir_name}/resources/qtwebengine_locales"))
+        data_args.extend(_as_data_arg(locales_dir, "resources/qtwebengine_locales"))
+
     return data_args, binary_args
 
 
@@ -229,6 +234,16 @@ def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
             target.parent.mkdir(parents=True, exist_ok=True)
             if not target.exists():
                 target.write_bytes(src.read_bytes())
+
+    locales_dir = layout.resources_dir / "qtwebengine_locales"
+    if locales_dir.exists():
+        for target in (
+            dist_dir / f"PyQt5/{qt_dir_name}/resources/qtwebengine_locales",
+            dist_dir / "resources/qtwebengine_locales",
+        ):
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.copytree(locales_dir, target)
 
 
 def build():
