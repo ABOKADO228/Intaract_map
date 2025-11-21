@@ -1,18 +1,49 @@
 import importlib.util
 import os
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-try:
-    from PyInstaller.__main__ import run as pyinstaller_run
-    from PyInstaller.utils.hooks import collect_data_files
-except ImportError as exc:  # pragma: no cover - handled at runtime
-    raise SystemExit(
-        "PyInstaller не установлен. Установите его перед сборкой (pip install pyinstaller)."
-    ) from exc
+
+def _ensure_pyinstaller_loaded():
+    """Импортировать PyInstaller, при необходимости попробовать локальную установку.
+
+    В изолированных окружениях интернет-доступ может быть недоступен (403 proxy),
+    поэтому позволяeм задать путь к заранее скачанному whl-файлу через
+    ``PYINSTALLER_WHEEL``. Если переменная не указана, сохраняем прежнее поведение
+    с явной ошибкой.
+    """
+
+    try:
+        from PyInstaller.__main__ import run as pyinstaller_run  # type: ignore
+        from PyInstaller.utils.hooks import collect_data_files  # type: ignore
+
+        return pyinstaller_run, collect_data_files
+    except ImportError:
+        wheel_path = os.environ.get("PYINSTALLER_WHEEL")
+        if wheel_path:
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", wheel_path])
+            except subprocess.CalledProcessError as exc:  # pragma: no cover - runtime guard
+                raise SystemExit(
+                    "PyInstaller не найден, и установка из PYINSTALLER_WHEEL завершилась ошибкой."
+                ) from exc
+
+            from PyInstaller.__main__ import run as pyinstaller_run  # type: ignore
+            from PyInstaller.utils.hooks import collect_data_files  # type: ignore
+
+            return pyinstaller_run, collect_data_files
+
+        raise SystemExit(
+            "PyInstaller не установлен. Установите его перед сборкой (pip install pyinstaller) "
+            "или укажите путь к локальному whl в переменной PYINSTALLER_WHEEL."
+        )
+
+
+pyinstaller_run, collect_data_files = _ensure_pyinstaller_loaded()
 
 try:
     import PyQt5
