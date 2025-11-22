@@ -6,6 +6,7 @@ from pathlib import Path
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtGui import QDoubleValidator
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
@@ -152,6 +153,7 @@ class MapApp(QMainWindow):
         self.current_mode = "offline"
         self.current_bounds = None
         self.current_zoom = 12
+        self.point_dialog_was_saved = False
 
         self.setup_ui()
         self.setup_web_channel()
@@ -188,8 +190,12 @@ class MapApp(QMainWindow):
 
         self.btn_add_point = QPushButton("Добавить точку")
         self.btn_add_point.clicked.connect(self.enable_add_point_mode)
+        self.btn_add_point_by_coords = QPushButton("Добавить по координатам")
+        self.btn_add_point_by_coords.clicked.connect(self.prompt_coordinates)
         self.btn_del_point = QPushButton("Удалить выбранные точки")
         self.btn_del_point.clicked.connect(self.remove_selected_points)
+        self.btn_edit_point = QPushButton("Изменить выбранную точку")
+        self.btn_edit_point.clicked.connect(self.request_point_edit)
 
         self.btn_download_map = QPushButton("Скачать офлайн-карту")
         self.btn_download_map.clicked.connect(self.download_offline_map)
@@ -205,7 +211,9 @@ class MapApp(QMainWindow):
 
         buttons = [
             self.btn_add_point,
+            self.btn_add_point_by_coords,
             self.btn_del_point,
+            self.btn_edit_point,
             self.btn_download_map,
             self.btn_download_visible,
             self.btn_offline_stats,
@@ -241,6 +249,36 @@ QPushButton:pressed {
 
     def remove_selected_points(self):
         self.map_view.page().runJavaScript("removeSelectedPoints();")
+
+    def request_point_edit(self):
+        script = """
+            (function() {
+                if (typeof getSelectedMarkerIds === 'function') {
+                    return JSON.stringify(getSelectedMarkerIds());
+                }
+                return '[]';
+            })();
+        """
+
+        def handle_selection(result):
+            try:
+                selection = json.loads(result) if result else []
+            except json.JSONDecodeError:
+                selection = []
+
+            if not selection:
+                QMessageBox.information(self, "Редактирование", "Выберите точку для изменения")
+                return
+
+            if len(selection) > 1:
+                QMessageBox.information(
+                    self, "Редактирование", "Выберите только одну точку для изменения"
+                )
+                return
+
+            self.edit_point(selection[0])
+
+        self.map_view.page().runJavaScript(script, handle_selection)
 
     def setup_web_channel(self):
         self.bridge = Bridge(self)
@@ -349,12 +387,31 @@ QPushButton:pressed {
         if not self.point_mode:
             return
 
-        self.dialog_window = DialogWindow(self)
-        self.dialog_window.dataSubmitted.connect(
-            lambda data: self.process_point_data(lat, lng, data)
+        self._open_point_dialog(lat, lng, via_map_click=True)
+
+    def edit_point(self, point_id):
+        point = next((p for p in self.points if p.get("id") == point_id), None)
+        if not point:
+            QMessageBox.warning(self, "Редактирование", "Точка не найдена")
+            return
+
+        self.edit_dialog = DialogWindow(self, point)
+        self.edit_dialog.dataSubmitted.connect(
+            lambda data, pid=point_id: self.process_point_edit(pid, data)
         )
-        self.dialog_window.destroyed.connect(lambda: self.cancel_point_addition())
-        self.dialog_window.show()
+        self.edit_dialog.show()
+
+    def edit_point(self, point_id):
+        point = next((p for p in self.points if p.get("id") == point_id), None)
+        if not point:
+            QMessageBox.warning(self, "Редактирование", "Точка не найдена")
+            return
+
+        self.edit_dialog = DialogWindow(self, point)
+        self.edit_dialog.dataSubmitted.connect(
+            lambda data, pid=point_id: self.process_point_edit(pid, data)
+        )
+        self.edit_dialog.show()
 
     def process_point_data(self, lat, lng, data):
         new_point = {
@@ -391,15 +448,196 @@ QPushButton:pressed {
         self.statusBar().showMessage(
             f"Добавлена точка: {new_point['name']} с {len(new_point['fileNames'])} файлами"
         )
-        self.map_view.page().runJavaScript("disableClickHandler();")
+        self.point_dialog_was_saved = True
+        if self.point_mode:
+            self.map_view.page().runJavaScript("disableClickHandler();")
+            self.point_mode = False
+            self.btn_add_point.setStyleSheet(
+                """
+                QPushButton {
+                    padding: 8px 12px;
+                    background: #4361ee;
+                    color: white;
+                    border: none;
+                    border-radius: 6px;
+                    font-weight: bold;
+                    width: 100%;
+                }
+                QPushButton:hover {
+                    background-color: #2980b9;
+                }
+                QPushButton:pressed {
+                    background-color: #1c6ea4;
+                }
+            """
+            )
         self.points = self.data_manager.current_data
         self.dialog_window.close()
-        self.point_mode = False
+
+    def focus_map_on(self, lat, lng):
+        js_code = f"focusOnCoordinates({lat}, {lng});"
+        self.map_view.page().runJavaScript(js_code)
+
+    def _open_point_dialog(self, lat, lng, via_map_click=False):
+        self.point_dialog_was_saved = False
+        self.dialog_window = DialogWindow(self)
+        self.dialog_window.dataSubmitted.connect(
+            lambda data: self.process_point_data(lat, lng, data)
+        )
+
+        self.dialog_window.destroyed.connect(
+            lambda: self.on_point_dialog_closed(via_map_click)
+        )
+
+        self.dialog_window.show()
+        self.focus_map_on(lat, lng)
+
+    def on_point_dialog_closed(self, via_map_click: bool):
+        if getattr(self, "point_dialog_was_saved", False):
+            return
+
+        if via_map_click:
+            self.cancel_point_addition()
+        else:
+            self.statusBar().showMessage("Форма добавления закрыта")
+
+    def process_point_edit(self, point_id, data):
+        point = next((p for p in self.points if p.get("id") == point_id), None)
+        if not point:
+            QMessageBox.warning(self, "Редактирование", "Точка не найдена")
+            return
+
+        combined_files = (
+            (data.get("existingFileNames") or point.get("fileNames") or [])
+            + data.get("fileNames", [])
+        )
+
+        updated_point = {
+            **point,
+            "name": data.get("name", point.get("name")),
+            "deep": data.get("deep", point.get("deep")),
+            "filters": data.get("filters", point.get("filters")),
+            "debit": data.get("debit", point.get("debit")),
+            "comments": data.get("comments", point.get("comments")),
+            "color": data.get("color", point.get("color", "#4361ee")),
+            "fileNames": combined_files,
+        }
+        updated_point["fileName"] = (
+            updated_point.get("fileNames", [""])[0] if updated_point.get("fileNames") else ""
+        )
+
+        if self.data_manager.update_point(point_id, updated_point):
+            self.points = self.data_manager.current_data
+
+            js_code = f"updateMarkerData({json.dumps(updated_point, ensure_ascii=False)});"
+            self.map_view.page().runJavaScript(js_code)
+            self.statusBar().showMessage(
+                f"Данные точки '{updated_point.get('name')}' обновлены"
+            )
+            if hasattr(self, "edit_dialog"):
+                self.edit_dialog.close()
+        else:
+            QMessageBox.warning(self, "Редактирование", "Не удалось обновить точку")
+
+    def process_point_edit(self, point_id, data):
+        point = next((p for p in self.points if p.get("id") == point_id), None)
+        if not point:
+            QMessageBox.warning(self, "Редактирование", "Точка не найдена")
+            return
+
+        combined_files = (
+            (data.get("existingFileNames") or point.get("fileNames") or [])
+            + data.get("fileNames", [])
+        )
+
+        updated_point = {
+            **point,
+            "name": data.get("name", point.get("name")),
+            "deep": data.get("deep", point.get("deep")),
+            "filters": data.get("filters", point.get("filters")),
+            "debit": data.get("debit", point.get("debit")),
+            "comments": data.get("comments", point.get("comments")),
+            "color": data.get("color", point.get("color", "#4361ee")),
+            "fileNames": combined_files,
+        }
+        updated_point["fileName"] = (
+            updated_point.get("fileNames", [""])[0] if updated_point.get("fileNames") else ""
+        )
+
+        if self.data_manager.update_point(point_id, updated_point):
+            self.points = self.data_manager.current_data
+
+            js_code = f"updateMarkerData({json.dumps(updated_point, ensure_ascii=False)});"
+            self.map_view.page().runJavaScript(js_code)
+            self.statusBar().showMessage(
+                f"Данные точки '{updated_point.get('name')}' обновлены"
+            )
+            if hasattr(self, "edit_dialog"):
+                self.edit_dialog.close()
+        else:
+            QMessageBox.warning(self, "Редактирование", "Не удалось обновить точку")
 
     def cancel_point_addition(self):
         self.statusBar().showMessage("Добавление точки отменено")
         self.point_mode = False
         self.map_view.page().runJavaScript("disableClickHandler();")
+
+    def prompt_coordinates(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Добавить точку по координатам")
+        dialog.setFixedSize(360, 220)
+
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Введите широту и долготу точки:"))
+
+        lat_input = QLineEdit()
+        lat_input.setPlaceholderText("Широта, например 59.9386")
+        lat_input.setValidator(QDoubleValidator(-90.0, 90.0, 8, lat_input))
+
+        lng_input = QLineEdit()
+        lng_input.setPlaceholderText("Долгота, например 30.3141")
+        lng_input.setValidator(QDoubleValidator(-180.0, 180.0, 8, lng_input))
+
+        coords_layout = QGridLayout()
+        coords_layout.addWidget(QLabel("Широта"), 0, 0)
+        coords_layout.addWidget(lat_input, 0, 1)
+        coords_layout.addWidget(QLabel("Долгота"), 1, 0)
+        coords_layout.addWidget(lng_input, 1, 1)
+
+        layout.addLayout(coords_layout)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addWidget(buttons)
+
+        def handle_accept():
+            lat_text = lat_input.text().replace(",", ".").strip()
+            lng_text = lng_input.text().replace(",", ".").strip()
+
+            try:
+                lat_value = float(lat_text)
+                lng_value = float(lng_text)
+            except ValueError:
+                QMessageBox.warning(self, "Неверные данные", "Введите корректные числовые координаты")
+                return
+
+            if not (-90.0 <= lat_value <= 90.0 and -180.0 <= lng_value <= 180.0):
+                QMessageBox.warning(
+                    self,
+                    "Неверные координаты",
+                    "Широта должна быть в диапазоне [-90; 90], долгота — [-180; 180]",
+                )
+                return
+
+            dialog.accept()
+            self.statusBar().showMessage(
+                f"Добавление точки по координатам: {lat_value:.6f}, {lng_value:.6f}"
+            )
+            self._open_point_dialog(lat_value, lng_value)
+
+        buttons.accepted.connect(handle_accept)
+        buttons.rejected.connect(dialog.reject)
+
+        dialog.exec_()
 
     def remove_point(self, point_id):
         point = next((p for p in self.points if p.get("id") == point_id), None)

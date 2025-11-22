@@ -22,6 +22,10 @@ function getMarkerById(id) {
     return markerIndex.get(id) || markerData.find(function(marker) { return marker.id === id; });
 }
 
+function getSelectedMarkerIds() {
+    return selectedMarkerIds.slice();
+}
+
 var bridge = null;
 var mapInitialized = false;
 var colorChangeQueue = [];
@@ -177,6 +181,15 @@ return {
 // Функция для получения текущего zoom уровня
 function getCurrentZoom() {
 return map.getZoom();
+}
+
+function focusOnCoordinates(lat, lng, zoom) {
+    if (!isFinite(lat) || !isFinite(lng)) {
+        return;
+    }
+
+    var targetZoom = typeof zoom === 'number' ? zoom : map.getZoom();
+    map.setView([lat, lng], targetZoom || 12);
 }
 
 // Отслеживание изменений карты для обновления границ
@@ -509,6 +522,69 @@ marker.on('click', function() {
 
 updateNavTree();
 return marker;
+}
+
+function updateMarkerData(updatedPoint) {
+if (!updatedPoint || !updatedPoint.id) {
+    return;
+}
+
+var marker = getMarkerById(updatedPoint.id);
+if (!marker) {
+    return;
+}
+
+marker.name = updatedPoint.name;
+marker.deep = updatedPoint.deep;
+marker.filters = updatedPoint.filters;
+marker.debit = updatedPoint.debit;
+marker.comments = updatedPoint.comments;
+marker.color = updatedPoint.color || '#4361ee';
+marker.fileNames = updatedPoint.fileNames || [];
+marker.fileName = updatedPoint.fileName || null;
+marker.lat = updatedPoint.lat !== undefined ? updatedPoint.lat : marker.lat;
+marker.lng = updatedPoint.lng !== undefined ? updatedPoint.lng : marker.lng;
+
+var markerIcon = L.divIcon({
+    html: `<div style="background-color: ${marker.color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${marker.color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
+    className: 'custom-marker',
+    iconSize: [15, 15],
+    iconAnchor: [7, 7]
+});
+
+marker.marker.setIcon(markerIcon);
+marker.marker.setLatLng([marker.lat, marker.lng]);
+
+var fileCount = marker.fileNames ? marker.fileNames.length : (marker.fileName ? 1 : 0);
+var popupContent = `<strong>${marker.name || ''}</strong>`;
+if (fileCount > 0) {
+    popupContent += `<br><small>Файлов: ${fileCount}</small>`;
+}
+marker.marker.bindPopup(popupContent);
+
+const tooltipParts = [];
+if (marker.name) {
+    tooltipParts.push(`<strong>${escapeHtml(marker.name)}</strong>`);
+}
+if (marker.deep !== undefined && marker.deep !== null && marker.deep !== '') {
+    tooltipParts.push(`Глубина: ${escapeHtml(String(marker.deep))}`);
+}
+if (tooltipParts.length) {
+    marker.marker.bindTooltip(tooltipParts.join('<br>'), {
+        direction: 'top',
+        opacity: 0.95,
+        sticky: true
+    });
+} else {
+    marker.marker.unbindTooltip();
+}
+
+updateNavTree();
+updateSelectedPointsList();
+
+if (selectedMarkerIds.indexOf(marker.id) !== -1) {
+    showPointInfo(marker);
+}
 }
 
 function removeSelectedPoints() {

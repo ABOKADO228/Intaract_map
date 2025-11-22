@@ -1,5 +1,7 @@
 var dialogBridge = null;
 var selectedFiles = [];
+var existingFiles = [];
+var initialFormData = window.initialFormData || null;
 
 // Инициализация WebChannel
 document.addEventListener("DOMContentLoaded", function() {
@@ -9,7 +11,52 @@ document.addEventListener("DOMContentLoaded", function() {
             console.log("WebChannel для формы инициализирован");
         });
     }
+
+    applyInitialData();
 });
+
+function applyInitialData() {
+    if (!initialFormData) {
+        return;
+    }
+
+    var title = document.getElementById('form-title');
+    var submitBtn = document.getElementById('submit-btn');
+    if (title) {
+        title.textContent = '✏️ Редактирование точки';
+    }
+    if (submitBtn) {
+        submitBtn.textContent = '💾 Сохранить изменения';
+    }
+
+    document.getElementById('name').value = initialFormData.name || '';
+    document.getElementById('deep').value = initialFormData.deep || '';
+    document.getElementById('filters').value = initialFormData.filters || '';
+    document.getElementById('debit').value = initialFormData.debit || '';
+    document.getElementById('comments').value = initialFormData.comments || '';
+
+    if (initialFormData.color) {
+        var colorInput = document.getElementById('color');
+        colorInput.value = initialFormData.color;
+
+        document.querySelectorAll('.color-option').forEach(function(option) {
+            option.classList.toggle(
+                'selected',
+                option.getAttribute('data-color') === initialFormData.color
+            );
+        });
+    }
+
+    var incomingFiles = [];
+    if (Array.isArray(initialFormData.fileNames) && initialFormData.fileNames.length > 0) {
+        incomingFiles = initialFormData.fileNames.slice();
+    } else if (initialFormData.fileName) {
+        incomingFiles = [initialFormData.fileName];
+    }
+
+    existingFiles = incomingFiles;
+    updateFileList();
+}
 
 // Обработчики цветовых опций
 document.querySelectorAll('.color-option').forEach(function(option) {
@@ -74,6 +121,30 @@ function updateFileList() {
     const fileList = document.getElementById('fileList');
     fileList.innerHTML = '';
 
+    if (existingFiles.length > 0) {
+        const header = document.createElement('div');
+        header.className = 'file-section-header';
+        header.textContent = 'Сохранённые файлы';
+        fileList.appendChild(header);
+
+        existingFiles.forEach(function(fileName) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item existing';
+            fileItem.innerHTML = `
+                <span class="file-name">${fileName}</span>
+                <span class="file-status">(уже прикреплен)</span>
+            `;
+            fileList.appendChild(fileItem);
+        });
+    }
+
+    if (selectedFiles.length > 0) {
+        const header = document.createElement('div');
+        header.className = 'file-section-header';
+        header.textContent = 'Новые файлы';
+        fileList.appendChild(header);
+    }
+
     selectedFiles.forEach(function(file, index) {
         const fileItem = document.createElement('div');
         fileItem.className = 'file-item';
@@ -112,7 +183,9 @@ document.getElementById('pointForm').addEventListener('submit', function(e) {
         debit: document.getElementById('debit').value,
         comments: document.getElementById('comments').value,
         color: document.getElementById('color').value,
-        files: selectedFiles
+        files: selectedFiles,
+        existingFileNames: existingFiles,
+        id: initialFormData && initialFormData.id ? initialFormData.id : null
     };
 
     // Проверка обязательных полей
@@ -124,3 +197,4 @@ document.getElementById('pointForm').addEventListener('submit', function(e) {
     console.log('Отправка данных формы:', Object.keys(formData));
     dialogBridge.sendFormData(JSON.stringify(formData));
 });
+

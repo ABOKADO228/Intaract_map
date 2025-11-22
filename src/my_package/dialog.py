@@ -4,6 +4,7 @@ import json
 import os
 import uuid
 from pathlib import Path
+from typing import Optional
 
 from PyQt5.QtCore import QObject, pyqtSignal, pyqtSlot, QUrl
 from PyQt5.QtWebChannel import QWebChannel
@@ -22,6 +23,8 @@ class DialogBridge(QObject):
             data = json.loads(json_data)
             files_data = data.get("files", [])
             saved_file_names = []
+
+            data.setdefault("existingFileNames", [])
 
             for file_item in files_data:
                 file_data = file_item.get("fileData")
@@ -57,11 +60,12 @@ class DialogBridge(QObject):
 class DialogWindow(QMainWindow):
     dataSubmitted = pyqtSignal(dict)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, initial_data: Optional[dict] = None):
         super().__init__(parent)
         self.setWindowTitle("Point input window")
         self.resize(550, 950)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.initial_data = initial_data
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -83,7 +87,17 @@ class DialogWindow(QMainWindow):
             QMessageBox.critical(self, "Ошибка", "Не удалось загрузить шаблон ввода")
             return
 
-        self.form.setHtml(html_template, QUrl.fromLocalFile(str(Path(RESOURCES_DIR).resolve()) + "/"))
+        initial_json = (
+            "null" if self.initial_data is None else json.dumps(self.initial_data, ensure_ascii=False)
+        )
+        html_with_data = html_template.replace(
+            "<!-- {{INITIAL_DATA}} -->",
+            f"<script>window.initialFormData = {initial_json};</script>",
+        )
+
+        self.form.setHtml(
+            html_with_data, QUrl.fromLocalFile(str(Path(RESOURCES_DIR).resolve()) + "/")
+        )
 
     def read_file(self, filename):
         try:
