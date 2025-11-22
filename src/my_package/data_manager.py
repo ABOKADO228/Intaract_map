@@ -220,6 +220,36 @@ class DataManager:
         conn.commit()
         conn.close()
 
+    def update_point(self, point_id: str, updated_data: dict) -> bool:
+        point_index = next(
+            (index for index, point in enumerate(self.current_data) if point.get("id") == point_id),
+            None,
+        )
+
+        if point_index is None:
+            print(f"Точка с ID {point_id} не найдена.")
+            return False
+
+        normalized_files = self._clean_file_list(updated_data.get("fileNames", []))
+        normalized_primary = self._normalize_file_name(updated_data.get("fileName"))
+
+        updated_point = {
+            **self.current_data[point_index],
+            **updated_data,
+            "id": point_id,
+            "fileNames": normalized_files,
+            "fileName": normalized_primary or (normalized_files[0] if normalized_files else ""),
+        }
+
+        self.current_data[point_index] = updated_point
+
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        self._insert_point(cursor, updated_point)
+        conn.commit()
+        conn.close()
+        return True
+
     def clear_all_points(self) -> None:
         self.current_data = []
         conn = sqlite3.connect(self.db_path)
