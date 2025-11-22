@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Интерактивная карта - CartoDB Voyager</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="assets/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="assets/css/map.css">
+</head>
+<body>
+    <div id="web-content">
+        <div id="map">
+            <div id="offline-status" class="offline-status offline">
+                ○ CartoDB Voyager - Офлайн режим
+            </div>
+        </div>
+        <div id="side-panel">
+            <div class="search-container">
+                <h3>🔍 Поиск точек</h3>
+                <input type="text" id="search-input" class="search-input" placeholder="Введите название точки...">
+                <button id="search-btn" class="search-btn">Поиск</button>
+                <div id="search-results" class="search-results" style="display: none;"></div>
+            </div>
+
+            <div class="visibility-controls">
+                <h3>👁 Управление видимостью</h3>
+                <div class="visibility-buttons">
+                    <button id="hide-all-btn" class="visibility-btn hide">👁 Скрыть все</button>
+                    <button id="show-all-btn" class="visibility-btn show">👁 Показать все</button>
+                    <button id="hide-selected-btn" class="visibility-btn hide">👁 Скрыть выбранные</button>
+                    <button id="show-selected-btn" class="visibility-btn show">👁 Показать выбранные</button>
+                </div>
+            </div>
+
+            <div class="selected-points-container">
+                <h3>✓ Выбранные точки</h3>
+                <div id="selected-points-list" class="selected-points-list">
+                    <div class="empty">Нет выбранных точек</div>
+                </div>
+                <div class="selection-controls">
+                    <button id="select-all-btn" class="selection-btn select">✓ Выбрать все</button>
+                    <button id="deselect-all-btn" class="selection-btn deselect">✗ Снять выделение</button>
+                </div>
+            </div>
+
+            <div class="nav-tree-container">
+                <div class="group-header" id="nav-tree-header">
+                    <div class="group-title">
+                        📁
+                        <span>Элементы навигационного дерева</span>
+                    </div>
+                    <div class="group-toggle">
+                        <button class="icon-btn" id="toggle-nav-tree">
+                            ▼
+                        </button>
+                    </div>
+                </div>
+                <div class="group-content" id="nav-tree-content">
+                    <ul id="nav-tree">
+                        <li class="empty">Добавьте маркеры, чтобы увидеть элементы дерева</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="color-controls">
+                <h3>🎨 Изменение цвета маркеров</h3>
+                <div class="color-picker">
+                    <label for="marker-color">Цвет маркера:</label>
+                    <input type="color" id="marker-color" value="#4361ee">
+                </div>
+                <div class="color-options">
+                    <div class="color-option selected" style="background-color: #4361ee;" data-color="#4361ee"></div>
+                    <div class="color-option" style="background-color: #ff4757;" data-color="#ff4757"></div>
+                    <div class="color-option" style="background-color: #2ed573;" data-color="#2ed573"></div>
+                    <div class="color-option" style="background-color: #ffa502;" data-color="#ffa502"></div>
+                    <div class="color-option" style="background-color: #a55eea;" data-color="#a55eea"></div>
+                    <div class="color-option" style="background-color: #00d2d3;" data-color="#00d2d3"></div>
+                </div>
+                <button id="apply-color">Применить цвет к выбранным маркерам</button>
+            </div>
+
+            <div class="point-info-container">
+                <h3>ℹ️ Информация о точке</h3>
+                <div id="point-info">Выберите точку на карте или в списке</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/leaflet/leaflet.js"></script>
+    <script type="text/javascript" src="qrc:///qtwebchannel/qwebchannel.js"></script>
+    <script>
+        /* {{POINTS_DATA}} */
+    </script>
+    <script src="assets/js/map.js"></script>
+
+</body>
+</html>
