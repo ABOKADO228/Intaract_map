@@ -79,7 +79,8 @@ OUTPUT_DIR = PROJECT_ROOT.parent / "output"
 BUILD_DIR = OUTPUT_DIR / "build"
 SPEC_DIR = OUTPUT_DIR
 ENTRY_POINT = BASE_DIR / "Карта скважин.py"
-ICON_PATH = BASE_DIR / "html_templates" / "assets" / "ico.ico"
+DEFAULT_ICON_PATH = BASE_DIR / "html_templates" / "assets" / "ico.ico"
+ICON_ENV_VAR = "PYINSTALLER_ICON_PATH"
 
 
 EXCLUDED_MODULES: list[str] = [
@@ -160,6 +161,30 @@ def _first_existing(paths: Iterable[Path]) -> Path | None:
         if path.exists():
             return path
     return None
+
+
+def _resolve_icon_path() -> Path:
+    """Получить путь к иконке для PyInstaller с поддержкой пользовательского override.
+
+    Если задана переменная окружения ``PYINSTALLER_ICON_PATH``, используем её
+    значение, удаляя возможные кавычки и пробелы по краям, и приводим путь к
+    абсолютному. Это позволяет указывать путь в Windows-формате без ручного
+    экранирования в коде. В противном случае возвращаем иконку из репозитория.
+    """
+
+    raw_icon = os.environ.get(ICON_ENV_VAR)
+
+    if raw_icon:
+        icon_candidate = Path(raw_icon.strip("'\" ")).expanduser()
+    else:
+        icon_candidate = DEFAULT_ICON_PATH
+
+    icon_path = icon_candidate.resolve()
+
+    if not icon_path.exists():
+        raise SystemExit(f"Файл иконки не найден: {icon_path}")
+
+    return icon_path
 
 
 @dataclass
@@ -535,8 +560,7 @@ def build():
     binary_args = []
 
 
-    if not ICON_PATH.exists():
-        raise SystemExit(f"Файл иконки не найден: {ICON_PATH}")
+    icon_path = _resolve_icon_path()
 
 
     # Пользовательские ресурсы приложения
@@ -555,10 +579,11 @@ def build():
     entry_point = _prepare_ascii_entry_point()
 
     args = [
-        f"--icon={ICON_PATH}",
+        f"--icon={icon_path.as_posix()}",
         "--noconfirm",
         "--clean",
         "--onedir",
+        "--windowed",
         f"--name=Карта скважин",
         f"--distpath={OUTPUT_DIR}",
         f"--workpath={BUILD_DIR}",
@@ -581,6 +606,24 @@ def build():
     args.append(str(entry_point))
 
     pyinstaller_run(args)
+
+    # На некоторых системах PyInstaller теряет иконку при копировании exe
+    # из каталога ``build`` в конечный ``dist``. Если видим, что промежуточный
+    # файл содержит иконку, то принудительно переносим ресурс в итоговый
+    # exe. Оборачиваем в проверку ОС, потому что CopyIcons доступна только
+    # в Windows-окружении.
+    if os.name == "nt":  # pragma: no cover - исполняется в пользовательской среде
+        try:
+            from PyInstaller.utils.win32.icon import CopyIcons  # type: ignore
+
+            build_exe = BUILD_DIR / "Карта скважин" / "Карта скважин.exe"
+            dist_exe = dist_dir / "Карта скважин.exe"
+
+            if build_exe.exists() and dist_exe.exists():
+                CopyIcons(str(build_exe), str(dist_exe))
+        except Exception:
+            # Ошибка иконки не критична для запуска приложения.
+            pass
 
     # Дополнительная страховка: если PyInstaller не разложил WebEngine,
     # продублируем файлы напрямую в dist.
