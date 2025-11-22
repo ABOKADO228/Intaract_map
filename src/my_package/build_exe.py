@@ -309,6 +309,26 @@ def _stage_icon_for_pyinstaller() -> Path:
     return staged_icon
 
 
+def _apply_icon_to_exe(exe_path: Path, icon_path: Path) -> None:
+    """Принудительно прописать иконку в итоговый exe через win32 CopyIcons."""
+
+    if os.name != "nt":
+        return
+
+    if not exe_path.exists():
+        raise FileNotFoundError(f"Не найден exe для установки иконки: {exe_path}")
+
+    try:
+        from PyInstaller.utils.win32 import icon as win32_icon  # type: ignore
+    except Exception as exc:  # pragma: no cover - runtime guard
+        raise SystemExit("Не удалось импортировать PyInstaller.utils.win32.icon") from exc
+
+    try:
+        win32_icon.CopyIcons(str(icon_path), str(exe_path))
+    except Exception as exc:  # pragma: no cover - runtime guard
+        raise SystemExit(f"Не удалось записать иконку в exe: {exc}") from exc
+
+
 def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
     """Дублируем QtWebEngineProcess и ресурсы прямо в папку сборки после PyInstaller.
 
@@ -615,6 +635,10 @@ def build():
     # Дополнительная страховка: если PyInstaller не разложил WebEngine,
     # продублируем файлы напрямую в dist.
     _ensure_webengine_in_dist(layout, dist_dir)
+
+    # Если PyInstaller по-прежнему не встроил иконку, пропишем её вручную в exe.
+    exe_path = dist_dir / "Карта скважин.exe"
+    _apply_icon_to_exe(exe_path, icon_path)
 
     # Чистим вспомогательный entry-point, чтобы не оставлять временный
     # файл между сборками и не путать PyInstaller при следующем запуске.
