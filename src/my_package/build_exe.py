@@ -79,7 +79,7 @@ OUTPUT_DIR = PROJECT_ROOT.parent / "output"
 BUILD_DIR = OUTPUT_DIR / "build"
 SPEC_DIR = OUTPUT_DIR
 ENTRY_POINT = BASE_DIR / "Карта скважин.py"
-ICON_PATH = BASE_DIR /"src"/"my_package"/ "html_templates" / "ico.ico"
+ICON_PATH = BASE_DIR / "html_templates" / "assets" / "ico.ico"
 
 
 EXCLUDED_MODULES: list[str] = [
