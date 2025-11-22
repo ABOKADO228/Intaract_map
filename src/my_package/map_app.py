@@ -401,6 +401,18 @@ QPushButton:pressed {
         )
         self.edit_dialog.show()
 
+    def edit_point(self, point_id):
+        point = next((p for p in self.points if p.get("id") == point_id), None)
+        if not point:
+            QMessageBox.warning(self, "Редактирование", "Точка не найдена")
+            return
+
+        self.edit_dialog = DialogWindow(self, point)
+        self.edit_dialog.dataSubmitted.connect(
+            lambda data, pid=point_id: self.process_point_edit(pid, data)
+        )
+        self.edit_dialog.show()
+
     def process_point_data(self, lat, lng, data):
         new_point = {
             "lat": lat,
@@ -488,6 +500,44 @@ QPushButton:pressed {
             self.cancel_point_addition()
         else:
             self.statusBar().showMessage("Форма добавления закрыта")
+
+    def process_point_edit(self, point_id, data):
+        point = next((p for p in self.points if p.get("id") == point_id), None)
+        if not point:
+            QMessageBox.warning(self, "Редактирование", "Точка не найдена")
+            return
+
+        combined_files = (
+            (data.get("existingFileNames") or point.get("fileNames") or [])
+            + data.get("fileNames", [])
+        )
+
+        updated_point = {
+            **point,
+            "name": data.get("name", point.get("name")),
+            "deep": data.get("deep", point.get("deep")),
+            "filters": data.get("filters", point.get("filters")),
+            "debit": data.get("debit", point.get("debit")),
+            "comments": data.get("comments", point.get("comments")),
+            "color": data.get("color", point.get("color", "#4361ee")),
+            "fileNames": combined_files,
+        }
+        updated_point["fileName"] = (
+            updated_point.get("fileNames", [""])[0] if updated_point.get("fileNames") else ""
+        )
+
+        if self.data_manager.update_point(point_id, updated_point):
+            self.points = self.data_manager.current_data
+
+            js_code = f"updateMarkerData({json.dumps(updated_point, ensure_ascii=False)});"
+            self.map_view.page().runJavaScript(js_code)
+            self.statusBar().showMessage(
+                f"Данные точки '{updated_point.get('name')}' обновлены"
+            )
+            if hasattr(self, "edit_dialog"):
+                self.edit_dialog.close()
+        else:
+            QMessageBox.warning(self, "Редактирование", "Не удалось обновить точку")
 
     def process_point_edit(self, point_id, data):
         point = next((p for p in self.points if p.get("id") == point_id), None)
