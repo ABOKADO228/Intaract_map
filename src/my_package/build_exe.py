@@ -504,6 +504,25 @@ if __name__ == "__main__":
     return wrapper_path
 
 
+def _prepare_icon() -> Path:
+    """Скопировать иконку в каталог сборки с простым путём."""
+
+    if not ICON_PATH.exists():
+        raise SystemExit(f"Файл иконки не найден: {ICON_PATH}")
+
+    icon_target = BUILD_DIR / "app_icon.ico"
+    icon_target.parent.mkdir(parents=True, exist_ok=True)
+
+    # PyInstaller иногда не подхватывает иконку из глубоко вложенной папки
+    # (особенно при сборке из другой рабочей директории). Копируем её рядом
+    # с временными файлами сборки и используем короткий ASCII-путь.
+    icon_bytes = ICON_PATH.read_bytes()
+    if not icon_target.exists() or icon_target.read_bytes() != icon_bytes:
+        icon_target.write_bytes(icon_bytes)
+
+    return icon_target
+
+
 def build():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
@@ -535,10 +554,6 @@ def build():
     binary_args = []
 
 
-    if not ICON_PATH.exists():
-        raise SystemExit(f"Файл иконки не найден: {ICON_PATH}")
-
-
     # Пользовательские ресурсы приложения
     data_args.extend(_as_data_arg(BASE_DIR / "html_templates", "html_templates"))
     data_args.extend(_as_data_arg(BASE_DIR / "data", "data"))
@@ -554,8 +569,10 @@ def build():
     # обертку с латинским именем, чтобы исключить ошибки кодировки.
     entry_point = _prepare_ascii_entry_point()
 
+    icon_path = _prepare_icon()
+
     args = [
-        f"--icon={ICON_PATH}",
+        f"--icon={icon_path}",
         "--noconfirm",
         "--clean",
         "--onedir",
