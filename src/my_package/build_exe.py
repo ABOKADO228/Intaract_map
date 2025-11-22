@@ -555,9 +555,8 @@ def build():
     entry_point = _prepare_ascii_entry_point()
 
     args = [
-        f"--icon={ICON_PATH}",
+        "--icon 'C:\Users\tosha\Downloads\c77b626a-8cff-421f-8b01-dcbffabda7c4-_1_.ico'",
         "--noconfirm",
-        "--clean",
         "--onedir",
         "--windowed",
         f"--name=Карта скважин",
