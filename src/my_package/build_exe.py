@@ -323,13 +323,25 @@ def _apply_icon_to_exe(exe_path: Path, icon_path: Path) -> None:
     except Exception as exc:  # pragma: no cover - runtime guard
         raise SystemExit("Не удалось импортировать PyInstaller.utils.win32.icon") from exc
 
+    temp_exe = exe_path.with_suffix(".icon_tmp.exe")
+
+    # Если CopyIcons завершится неудачно, исходный exe останется нетронутым.
+    shutil.copy2(exe_path, temp_exe)
+
     try:
         # dstpath должен идти первым, затем список/путь к источнику иконки.
         # Ранее аргументы были перепутаны, из-за чего PyInstaller пытался
         # интерпретировать .ico как исполняемый файл и возвращал ошибку 193.
-        win32_icon.CopyIcons(str(exe_path), str(icon_path))
+        win32_icon.CopyIcons(str(temp_exe), str(icon_path))
+        temp_exe.replace(exe_path)
     except Exception as exc:  # pragma: no cover - runtime guard
-        raise SystemExit(f"Не удалось записать иконку в exe: {exc}") from exc
+        print(f"Предупреждение: не удалось записать иконку в exe: {exc}")
+    finally:
+        if temp_exe.exists():
+            try:
+                temp_exe.unlink()
+            except OSError:
+                pass
 
 
 def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
