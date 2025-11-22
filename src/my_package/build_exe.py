@@ -555,10 +555,10 @@ def build():
     entry_point = _prepare_ascii_entry_point()
 
     args = [
-        f"--icon={ICON_PATH}",
+        "--icon 'C:\Users\tosha\Downloads\c77b626a-8cff-421f-8b01-dcbffabda7c4-_1_.ico'",
         "--noconfirm",
-        "--clean",
         "--onedir",
+        "--windowed",
         f"--name=Карта скважин",
         f"--distpath={OUTPUT_DIR}",
         f"--workpath={BUILD_DIR}",
@@ -581,6 +581,24 @@ def build():
     args.append(str(entry_point))
 
     pyinstaller_run(args)
+
+    # На некоторых системах PyInstaller теряет иконку при копировании exe
+    # из каталога ``build`` в конечный ``dist``. Если видим, что промежуточный
+    # файл содержит иконку, то принудительно переносим ресурс в итоговый
+    # exe. Оборачиваем в проверку ОС, потому что CopyIcons доступна только
+    # в Windows-окружении.
+    if os.name == "nt":  # pragma: no cover - исполняется в пользовательской среде
+        try:
+            from PyInstaller.utils.win32.icon import CopyIcons  # type: ignore
+
+            build_exe = BUILD_DIR / "Карта скважин" / "Карта скважин.exe"
+            dist_exe = dist_dir / "Карта скважин.exe"
+
+            if build_exe.exists() and dist_exe.exists():
+                CopyIcons(str(build_exe), str(dist_exe))
+        except Exception:
+            # Ошибка иконки не критична для запуска приложения.
+            pass
 
     # Дополнительная страховка: если PyInstaller не разложил WebEngine,
     # продублируем файлы напрямую в dist.
