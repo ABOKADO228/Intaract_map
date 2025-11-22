@@ -52,6 +52,10 @@ class Bridge(QObject):
         self.parent.remove_point(point_id)
 
     @pyqtSlot(str)
+    def editPoint(self, point_id):
+        self.parent.edit_point(point_id)
+
+    @pyqtSlot(str)
     def changeColor(self, json_data):
         try:
             data = json.loads(json_data)

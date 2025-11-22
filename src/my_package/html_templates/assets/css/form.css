@@ -103,6 +103,12 @@ body {
             overflow-y: auto;
         }
 
+        .file-section-header {
+            font-weight: 600;
+            color: #555;
+            margin: 10px 0 5px;
+        }
+
         .file-item {
             display: flex;
             justify-content: space-between;
@@ -113,12 +119,23 @@ body {
             margin-bottom: 5px;
         }
 
+        .file-item.existing {
+            background: #eef2ff;
+            color: #333;
+        }
+
         .file-name {
             flex: 1;
             font-size: 14px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+
+        .file-status {
+            margin-left: 8px;
+            color: #667eea;
+            font-size: 12px;
         }
 
         .remove-file {
