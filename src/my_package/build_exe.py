@@ -293,6 +293,22 @@ def _ensure_icon_present() -> Path:
     return ICON_PATH
 
 
+def _stage_icon_for_pyinstaller() -> Path:
+    """Скопировать иконку в ASCII-путь, который гарантированно увидит PyInstaller."""
+
+    staged_icon = BUILD_DIR / "app_icon.ico"
+
+    source_icon = _ensure_icon_present()
+    staged_icon.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        shutil.copy2(source_icon, staged_icon)
+    except OSError as exc:  # pragma: no cover - runtime guard
+        raise SystemExit(f"Не удалось подготовить иконку: {exc}") from exc
+
+    return staged_icon
+
+
 def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
     """Дублируем QtWebEngineProcess и ресурсы прямо в папку сборки после PyInstaller.
 
@@ -566,7 +582,7 @@ def build():
     # обертку с латинским именем, чтобы исключить ошибки кодировки.
     entry_point = _prepare_ascii_entry_point()
 
-    icon_path = _ensure_icon_present()
+    icon_path = _stage_icon_for_pyinstaller()
 
     args = [
         "--noconfirm",
