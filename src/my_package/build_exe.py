@@ -324,7 +324,10 @@ def _apply_icon_to_exe(exe_path: Path, icon_path: Path) -> None:
         raise SystemExit("Не удалось импортировать PyInstaller.utils.win32.icon") from exc
 
     try:
-        win32_icon.CopyIcons(str(icon_path), str(exe_path))
+        # dstpath должен идти первым, затем список/путь к источнику иконки.
+        # Ранее аргументы были перепутаны, из-за чего PyInstaller пытался
+        # интерпретировать .ico как исполняемый файл и возвращал ошибку 193.
+        win32_icon.CopyIcons(str(exe_path), str(icon_path))
     except Exception as exc:  # pragma: no cover - runtime guard
         raise SystemExit(f"Не удалось записать иконку в exe: {exc}") from exc
 
