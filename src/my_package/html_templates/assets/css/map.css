@@ -8,6 +8,7 @@
         #map {
             width: 75%;
             height: 100%;
+            position: relative;
         }
         #side-panel {
             width: 25%;
@@ -397,6 +398,11 @@
         .icon-btn:hover {
             color: #4361ee;
             background-color: #f0f0f0;
+        }
+
+        /* Скрыть нежелательные элементы управления в левом нижнем углу карты */
+        #map .leaflet-bottom.leaflet-left {
+            display: none;
         }
 
         /* Стили для ссылки на файл */

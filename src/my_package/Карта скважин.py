@@ -146,7 +146,7 @@ def setup_qt_webengine():
         try:
             from PyQt5.QtCore import QLibraryInfo
 
-            base_path = QLibraryInfo.location(QLibraryInfo.PrefixPath)
+            base_path = Path(QLibraryInfo.location(QLibraryInfo.PrefixPath))
             logger.info("Running in dev mode, Qt path: %s", base_path)
         except ImportError:
             logger.error("PyQt5 not found in virtual environment!")
