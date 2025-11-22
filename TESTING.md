@@ -20,3 +20,7 @@
 - Access to PyPI (or a local wheel provided via PYINSTALLER_WHEEL) is required to install PyInstaller and complete the build.
 - Installing libGL.so.1 (for example via the libgl1 package on Debian/Ubuntu) is needed to run the Qt application in this environment.
 - Proxy access to the apt repositories must be fixed or a local package mirror provided to fetch libGL.
+
+## Latest Test (2025-11-22)
+- Command: QT_QPA_PLATFORM=offscreen QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox" python src/my_package/map_app.py
+- Result: failed to start because libGL.so.1 is missing from the container; PyQtWebEngine requires this system library even when running offscreen.
