@@ -400,8 +400,9 @@
             background-color: #f0f0f0;
         }
 
-        /* Скрыть нежелательные элементы управления в левом нижнем углу карты */
-        #map .leaflet-bottom.leaflet-left {
+        /* Скрыть нежелательные элементы управления в левом нижнем и правом нижнем углах карты */
+        #map .leaflet-bottom.leaflet-left,
+        #map .leaflet-bottom.leaflet-right {
             display: none;
         }
 
