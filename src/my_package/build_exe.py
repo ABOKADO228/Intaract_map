@@ -79,7 +79,8 @@ OUTPUT_DIR = PROJECT_ROOT.parent / "output"
 BUILD_DIR = OUTPUT_DIR / "build"
 SPEC_DIR = OUTPUT_DIR
 ENTRY_POINT = BASE_DIR / "Карта скважин.py"
-ICON_PATH = BASE_DIR / "html_templates" / "assets" / "ico.ico"
+ICON_PATH = (BASE_DIR / "html_templates" / "assets" / "ico.ico").resolve()
+SPEC_FILE = SPEC_DIR / "Карта скважин.spec"
 
 
 EXCLUDED_MODULES: list[str] = [
@@ -281,6 +282,15 @@ def _gather_qt_resources(layout: QtLayout) -> tuple[list[str], list[str]]:
             data_args.extend(_as_data_arg(Path(source), target))
 
     return data_args, binary_args
+
+
+def _ensure_icon_present() -> Path:
+    """Проверить наличие и вернуть абсолютный путь к иконке."""
+
+    if not ICON_PATH.exists():
+        raise FileNotFoundError(f"Icon file not found: {ICON_PATH}")
+
+    return ICON_PATH
 
 
 def _ensure_webengine_in_dist(layout: QtLayout, dist_dir: Path) -> None:
@@ -529,6 +539,13 @@ def build():
             # но предупреждение PermissionError появляться будет реже.
             pass
 
+    # Удаляем старый .spec, чтобы PyInstaller заново записал актуальный путь к иконке.
+    if SPEC_FILE.exists():
+        try:
+            SPEC_FILE.unlink()
+        except OSError:
+            pass
+
     layout = _discover_qt_layout()
 
     data_args = []
@@ -549,6 +566,8 @@ def build():
     # обертку с латинским именем, чтобы исключить ошибки кодировки.
     entry_point = _prepare_ascii_entry_point()
 
+    icon_path = _ensure_icon_present()
+
     args = [
         "--noconfirm",
         "--clean",
@@ -563,7 +582,7 @@ def build():
         "--hidden-import=PyQt5.QtWebEngineCore",
         "--hidden-import=PyQt5.sip",
         "--hidden-import=sip",
-        f"--icon={ICON_PATH}",
+        f"--icon={icon_path}",
     ]
 
     for module in EXCLUDED_MODULES:
