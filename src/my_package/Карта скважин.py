@@ -217,6 +217,7 @@ if not setup_qt_webengine():
     sys.exit(1)
 
 try:
+    from PyQt5.QtGui import QIcon
     from PyQt5.QtWidgets import QApplication
 except ImportError as exc:
     print(f"Failed to import PyQt5: {exc}")
@@ -245,6 +246,9 @@ def main():
     ensure_offline_assets()
     data_manager = DataManager(DATA_DIR)
     app = QApplication(sys.argv)
+    icon_path = Path(RESOURCES_DIR) / "assets" / "ico.ico"
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
     window = MapApp(data_manager)
     window.show()
     sys.exit(app.exec_())
