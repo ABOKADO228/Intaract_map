@@ -582,6 +582,24 @@ def build():
 
     pyinstaller_run(args)
 
+    # На некоторых системах PyInstaller теряет иконку при копировании exe
+    # из каталога ``build`` в конечный ``dist``. Если видим, что промежуточный
+    # файл содержит иконку, то принудительно переносим ресурс в итоговый
+    # exe. Оборачиваем в проверку ОС, потому что CopyIcons доступна только
+    # в Windows-окружении.
+    if os.name == "nt":  # pragma: no cover - исполняется в пользовательской среде
+        try:
+            from PyInstaller.utils.win32.icon import CopyIcons  # type: ignore
+
+            build_exe = BUILD_DIR / "Карта скважин" / "Карта скважин.exe"
+            dist_exe = dist_dir / "Карта скважин.exe"
+
+            if build_exe.exists() and dist_exe.exists():
+                CopyIcons(str(build_exe), str(dist_exe))
+        except Exception:
+            # Ошибка иконки не критична для запуска приложения.
+            pass
+
     # Дополнительная страховка: если PyInstaller не разложил WebEngine,
     # продублируем файлы напрямую в dist.
     _ensure_webengine_in_dist(layout, dist_dir)
