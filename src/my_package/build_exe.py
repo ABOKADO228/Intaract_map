@@ -611,7 +611,8 @@ def build():
     # из каталога ``build`` в конечный ``dist``. Если видим, что промежуточный
     # файл содержит иконку, то принудительно переносим ресурс в итоговый
     # exe. Оборачиваем в проверку ОС, потому что CopyIcons доступна только
-    # в Windows-окружении.
+    # в Windows-окружении. Если копирование из build не удалось (или файл не
+    # найден), дополнительно пробуем наложить исходный .ico напрямую.
     if os.name == "nt":  # pragma: no cover - исполняется в пользовательской среде
         try:
             from PyInstaller.utils.win32.icon import CopyIcons  # type: ignore
@@ -619,8 +620,17 @@ def build():
             build_exe = BUILD_DIR / "Карта скважин" / "Карта скважин.exe"
             dist_exe = dist_dir / "Карта скважин.exe"
 
-            if build_exe.exists() and dist_exe.exists():
-                CopyIcons(str(build_exe), str(dist_exe))
+            if dist_exe.exists():
+                if build_exe.exists():
+                    try:
+                        CopyIcons(str(dist_exe), str(build_exe))
+                    except Exception:
+                        pass
+
+                try:
+                    CopyIcons(str(dist_exe), str(icon_path))
+                except Exception:
+                    pass
         except Exception:
             # Ошибка иконки не критична для запуска приложения.
             pass
