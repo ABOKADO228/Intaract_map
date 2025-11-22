@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 from PyQt5.QtCore import QObject, pyqtSlot
 
@@ -14,26 +15,31 @@ class Bridge(QObject):
         self.parent = parent
 
     def _resolve_file_path(self, file_name: str) -> str:
-        """Return an existing file path for the stored attachment name."""
+        """Вернуть путь к вложению, опираясь на каталог данных приложения."""
 
         if not file_name:
             return ""
 
+        base_dir = Path(FILE_DIR)
         candidates = []
 
-        # Allow absolute paths that already exist (legacy records)
+        # Относительный путь внутри каталога файлов (основной случай)
+        candidates.append(base_dir / file_name)
+
+        # Если в базе лежит абсолютный путь, проверяем только в рамках каталога данных,
+        # чтобы не зависеть от оригинального расположения на другой машине.
         if os.path.isabs(file_name):
-            candidates.append(file_name)
-
-        # Support relative entries that may already include subdirectories
-        candidates.append(os.path.abspath(file_name))
-
-        # Default location for stored attachments
-        candidates.append(os.path.join(FILE_DIR, file_name))
+            absolute_path = Path(file_name)
+            try:
+                relative = absolute_path.relative_to(base_dir)
+                candidates.append(base_dir / relative)
+            except ValueError:
+                # Вне каталога данных — пропускаем, чтобы не ссылаться на чужие диски.
+                pass
 
         for candidate in candidates:
-            if candidate and os.path.exists(candidate):
-                return os.path.normpath(candidate)
+            if candidate and candidate.exists():
+                return os.path.normpath(str(candidate))
 
         return ""
 

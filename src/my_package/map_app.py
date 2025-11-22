@@ -26,16 +26,29 @@ from PyQt5.QtWidgets import (
 )
 
 from bridge import Bridge
-from config import RESOURCES_DIR
+from config import BASE_DIR, RESOURCES_DIR
 from dialog import DialogWindow
 from download_thread import DownloadThread
 from tile_manager import TileManager
 
 
+def _first_existing(paths):
+    for path in paths:
+        if path.exists():
+            return path
+    return None
+
+
+def _runtime_base() -> Path:
+    """Корень ресурсов в рантайме (frozen или dev)."""
+
+    return Path(BASE_DIR)
+
+
 def _configure_webengine_process_path():
     """Установить путь до QtWebEngineProcess, если он был упакован PyInstaller."""
 
-    base_dir = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    base_dir = _runtime_base()
     process_name = "QtWebEngineProcess.exe" if os.name == "nt" else "QtWebEngineProcess"
     candidates = [
         base_dir / process_name,
@@ -51,7 +64,81 @@ def _configure_webengine_process_path():
             break
 
 
+def _frozen_base_candidates() -> list[Path]:
+    """Кандидаты базовых путей для упакованного приложения.
+
+    В режиме onedir PyInstaller располагает зависимости рядом с exe или в
+    подпапке ``_internal``. В режиме onefile используется ``_MEIPASS``. Чтобы
+    покрыть оба варианта, возвращаем список возможных корней для поиска
+    ресурсов QtWebEngine.
+    """
+
+    candidates: list[Path] = []
+
+    runtime_base = _runtime_base()
+    candidates.append(runtime_base)
+
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        candidates.append(Path(meipass))
+
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        candidates.append(exe_dir)
+        candidates.append(exe_dir / "_internal")
+
+    return candidates
+
+
+def _configure_webengine_resources():
+    """Указать Qt путь к ресурсам и локалям WebEngine из упакованной папки."""
+
+    base_candidates = _frozen_base_candidates()
+
+    resource_candidates: list[Path] = []
+    locale_candidates: list[Path] = []
+
+    for base_dir in base_candidates:
+        resource_candidates.extend(
+            [
+                base_dir / "resources",
+                base_dir / "PyQt5" / "Qt5" / "resources",
+                base_dir / "PyQt5" / "Qt" / "resources",
+                base_dir / "PyQt6" / "Qt6" / "resources",
+                base_dir,
+            ]
+        )
+
+        locale_candidates.extend(
+            [
+                base_dir / "resources" / "qtwebengine_locales",
+                base_dir / "qtwebengine_locales",
+                base_dir / "PyQt5" / "Qt5" / "resources" / "qtwebengine_locales",
+                base_dir / "PyQt5" / "Qt" / "resources" / "qtwebengine_locales",
+                base_dir / "PyQt5" / "Qt5" / "translations" / "qtwebengine_locales",
+                base_dir / "PyQt5" / "Qt" / "translations" / "qtwebengine_locales",
+                base_dir / "PyQt6" / "Qt6" / "resources" / "qtwebengine_locales",
+                base_dir / "PyQt6" / "Qt6" / "translations" / "qtwebengine_locales",
+            ]
+        )
+
+    if "QTWEBENGINE_RESOURCES_PATH" not in os.environ:
+        resources_dir = _first_existing(
+            [path for path in resource_candidates if (path / "qtwebengine_resources.pak").exists()]
+        )
+        if resources_dir:
+            os.environ["QTWEBENGINE_RESOURCES_PATH"] = str(resources_dir)
+
+    if "QTWEBENGINE_LOCALES_PATH" not in os.environ:
+        locales_dir = _first_existing(
+            [path for path in locale_candidates if path.exists() and any(path.glob("*.pak"))]
+        )
+        if locales_dir:
+            os.environ["QTWEBENGINE_LOCALES_PATH"] = str(locales_dir)
+
+
 _configure_webengine_process_path()
+_configure_webengine_resources()
 
 
 class MapApp(QMainWindow):
@@ -174,7 +261,7 @@ QPushButton:pressed {
                 "/* {{POINTS_DATA}} */", f"var initialMarkerData = {points_json};"
             )
 
-            base_url = QUrl.fromLocalFile(str(RESOURCES_DIR) + "/")
+            base_url = QUrl.fromLocalFile(str(Path(RESOURCES_DIR).resolve()) + "/")
             self.map_view.setHtml(html_content, base_url)
             self.map_view.loadFinished.connect(self.on_map_loaded)
 
@@ -184,7 +271,7 @@ QPushButton:pressed {
 
     def read_file(self, filename):
         try:
-            file_path = os.path.join(RESOURCES_DIR, filename)
+            file_path = Path(RESOURCES_DIR) / filename
             with open(file_path, "r", encoding="utf-8") as handle:
                 return handle.read()
         except Exception as exc:
@@ -198,17 +285,8 @@ QPushButton:pressed {
         """Guarantee the JS side sees the registered bridge after each load."""
 
         script = """
-            if (typeof qt !== 'undefined' && qt.webChannelTransport) {
-                new QWebChannel(qt.webChannelTransport, function(channel) {
-                    if (typeof window.setBridge === 'function') {
-                        window.setBridge(channel.objects.bridge);
-                    } else {
-                        window.bridge = channel.objects.bridge;
-                    }
-                    if (typeof window.onBridgeReady === 'function') {
-                        window.onBridgeReady();
-                    }
-                });
+            if (typeof window.ensureWebChannel === 'function') {
+                window.ensureWebChannel();
             }
         """
         self.map_view.page().runJavaScript(script)

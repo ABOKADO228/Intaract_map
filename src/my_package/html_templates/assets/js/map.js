@@ -32,6 +32,7 @@ var connectivityState = {
     isOnline: false,
     lastChecked: 0
 };
+var webChannelInstance = null;
 
 function setBridge(instance) {
     if (instance) {
@@ -199,6 +200,7 @@ updateMapBounds();
 
 // Инициализация WebChannel
 function bindBridge(channel) {
+    webChannelInstance = channel;
     setBridge(channel.objects.bridge);
     console.log("WebChannel инициализирован");
     if (typeof window.onBridgeReady === 'function') {
@@ -207,12 +209,21 @@ function bindBridge(channel) {
     initMap();
 }
 
-if (typeof qt !== 'undefined' && qt.webChannelTransport) {
-    new QWebChannel(qt.webChannelTransport, bindBridge);
-} else {
-    console.error("WebChannel не доступен");
-    initMap();
+function ensureWebChannel() {
+    if (webChannelInstance && webChannelInstance.objects && webChannelInstance.objects.bridge) {
+        bindBridge(webChannelInstance);
+        return;
+    }
+
+    if (typeof qt !== 'undefined' && qt.webChannelTransport) {
+        new QWebChannel(qt.webChannelTransport, bindBridge);
+    } else {
+        console.error("WebChannel не доступен");
+        initMap();
+    }
 }
+
+ensureWebChannel();
 
 function initMap() {
 if (mapInitialized) {
