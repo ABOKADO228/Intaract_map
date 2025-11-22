@@ -10,7 +10,8 @@ function escapeHtml(unsafe) {
 
 // Инициализация карты
 var map = L.map('map', {minZoom: 0, maxZoom: 18, preferCanvas: true}).setView([59.93, 30.34], 12);
-var markers = L.layerGroup().addTo(map);
+var markerRenderer = L.canvas({ padding: 0.5 });
+var markers = L.featureGroup().addTo(map);
 var selectedMarkerIds = [];
 var markerData = [];
 const markerIndex = new Map();
@@ -459,15 +460,16 @@ if (typeof initialMarkerData !== 'undefined' && initialMarkerData.length > 0) {
 function addMarker(lat, lng, name, id, deep, filters, debit, comments, color, fileName, fileNames) {
 if (!color) color = '#4361ee';
 
-// Создаем кастомную иконку с выбранным цветом
-var markerIcon = L.divIcon({
-    html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
-    className: 'custom-marker',
-    iconSize: [15, 15],
-    iconAnchor: [7, 7]
+var marker = L.circleMarker([lat, lng], {
+    radius: 6,
+    color: '#ffffff',
+    weight: 2,
+    fillColor: color,
+    fillOpacity: 1,
+    renderer: markerRenderer
 });
 
-var marker = L.marker([lat, lng], {icon: markerIcon}).addTo(markers);
+markers.addLayer(marker);
 
 if (name) {
     // Добавляем количество файлов в popup
@@ -545,14 +547,10 @@ marker.fileName = updatedPoint.fileName || null;
 marker.lat = updatedPoint.lat !== undefined ? updatedPoint.lat : marker.lat;
 marker.lng = updatedPoint.lng !== undefined ? updatedPoint.lng : marker.lng;
 
-var markerIcon = L.divIcon({
-    html: `<div style="background-color: ${marker.color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${marker.color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
-    className: 'custom-marker',
-    iconSize: [15, 15],
-    iconAnchor: [7, 7]
-});
-
-marker.marker.setIcon(markerIcon);
+ marker.marker.setStyle({
+     fillColor: marker.color,
+     color: '#ffffff'
+ });
 marker.marker.setLatLng([marker.lat, marker.lng]);
 
 var fileCount = marker.fileNames ? marker.fileNames.length : (marker.fileName ? 1 : 0);
@@ -953,9 +951,9 @@ const markerInfo = getMarkerById(markerId);
 if (markerInfo) {
     markerInfo.visible = visible;
     if (visible) {
-        markerInfo.marker.addTo(map);
+        markers.addLayer(markerInfo.marker);
     } else {
-        map.removeLayer(markerInfo.marker);
+        markers.removeLayer(markerInfo.marker);
     }
 }
 }
@@ -1019,15 +1017,7 @@ selectedMarkerIds.forEach(function(markerId) {
     if (markerInfo) {
         markerInfo.color = color;
 
-        // Создаем новую иконку с обновленным цветом
-        var newIcon = L.divIcon({
-            html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
-            className: 'custom-marker',
-            iconSize: [15, 15],
-            iconAnchor: [7, 7]
-        });
-
-        markerInfo.marker.setIcon(newIcon);
+        markerInfo.marker.setStyle({ fillColor: color });
     }
 });
 
@@ -1082,7 +1072,7 @@ colorChangeQueue = [];
 function removeMarker(id) {
 const index = markerData.findIndex(m => m.id === id);
 if (index !== -1) {
-    map.removeLayer(markerData[index].marker);
+    markers.removeLayer(markerData[index].marker);
     markerData.splice(index, 1);
     markerIndex.delete(id);
 
