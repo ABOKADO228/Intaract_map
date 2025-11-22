@@ -79,6 +79,8 @@ OUTPUT_DIR = PROJECT_ROOT.parent / "output"
 BUILD_DIR = OUTPUT_DIR / "build"
 SPEC_DIR = OUTPUT_DIR
 ENTRY_POINT = BASE_DIR / "Карта скважин.py"
+ICON_PATH = BASE_DIR /"src"/"my_package"/ "html_templates" / "ico.ico"
+
 
 EXCLUDED_MODULES: list[str] = [
     # Стандартные posix-модули, которых нет на Windows. PyInstaller пытается
@@ -561,6 +563,7 @@ def build():
         "--hidden-import=PyQt5.QtWebEngineCore",
         "--hidden-import=PyQt5.sip",
         "--hidden-import=sip",
+        f"--icon={ICON_PATH}",
     ]
 
     for module in EXCLUDED_MODULES:
