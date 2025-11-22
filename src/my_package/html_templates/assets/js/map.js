@@ -10,7 +10,7 @@ function escapeHtml(unsafe) {
 
 // Инициализация карты
 var map = L.map('map', {minZoom: 0, maxZoom: 18, preferCanvas: true}).setView([59.93, 30.34], 12);
-var markerRenderer = L.canvas({ padding: 0.5 });
+var markerRenderer = L.canvas({ padding: 0.5, tolerance: 2 });
 var markers = L.featureGroup().addTo(map);
 var selectedMarkerIds = [];
 var markerData = [];
@@ -18,6 +18,9 @@ const markerIndex = new Map();
 
 let navTreeScheduled = false;
 let selectedListScheduled = false;
+let markerQueueHandle = null;
+const markerQueue = [];
+const MARKER_BATCH_SIZE = 400;
 
 function getMarkerById(id) {
     return markerIndex.get(id) || markerData.find(function(marker) { return marker.id === id; });
@@ -431,10 +434,30 @@ if (currentMode === 'online') {
 }
 }
 
-// Инициализация точек
-function initPoints() {
-if (typeof initialMarkerData !== 'undefined' && initialMarkerData.length > 0) {
-    initialMarkerData.forEach(function(point, index) {
+function scheduleMarkerQueue() {
+    if (markerQueueHandle) return;
+
+    if (typeof requestIdleCallback === 'function') {
+        markerQueueHandle = requestIdleCallback(processMarkerQueue, { timeout: 120 });
+    } else {
+        markerQueueHandle = setTimeout(processMarkerQueue, 16);
+    }
+}
+
+function enqueueMarkers(points) {
+    if (!points || !points.length) return;
+
+    markerQueue.push(...points);
+    scheduleMarkerQueue();
+}
+
+function processMarkerQueue(deadline) {
+    markerQueueHandle = null;
+    let processed = 0;
+    let shouldYield = false;
+
+    while (markerQueue.length && !shouldYield) {
+        const point = markerQueue.shift();
         addMarker(
             point.lat,
             point.lng,
@@ -446,18 +469,37 @@ if (typeof initialMarkerData !== 'undefined' && initialMarkerData.length > 0) {
             point.comments,
             point.color,
             point.fileName,
-            point.fileNames || []
+            point.fileNames || [],
+            true
         );
-    });
-    initialMarkerData = [];
 
-    updateNavTree();
-    updateSelectedPointsList();
+        processed++;
+
+        if (deadline && typeof deadline.timeRemaining === 'function') {
+            shouldYield = deadline.timeRemaining() <= 1;
+        } else {
+            shouldYield = processed >= MARKER_BATCH_SIZE;
+        }
+    }
+
+    if (markerQueue.length) {
+        scheduleMarkerQueue();
+    } else {
+        updateNavTree();
+        updateSelectedPointsList();
+    }
+}
+
+// Инициализация точек
+function initPoints() {
+if (typeof initialMarkerData !== 'undefined' && initialMarkerData.length > 0) {
+    enqueueMarkers(initialMarkerData);
+    initialMarkerData = [];
 }
 }
 
 // Добавление маркера
-function addMarker(lat, lng, name, id, deep, filters, debit, comments, color, fileName, fileNames) {
+function addMarker(lat, lng, name, id, deep, filters, debit, comments, color, fileName, fileNames, skipUiUpdate) {
 if (!color) color = '#4361ee';
 
 var marker = L.circleMarker([lat, lng], {
@@ -514,16 +556,19 @@ var markerInfo = {
 };
 
 markerData.push(markerInfo);
-markerIndex.set(id, markerInfo);
+    markerIndex.set(id, markerInfo);
 
 // Добавляем обработчик клика для показа информации
-marker.on('click', function() {
-    showPointInfo(markerInfo);
-    toggleMarkerSelection(markerInfo.id);
-});
+    marker.on('click', function() {
+        showPointInfo(markerInfo);
+        toggleMarkerSelection(markerInfo.id);
+    });
 
-updateNavTree();
-return marker;
+    if (!skipUiUpdate) {
+        updateNavTree();
+        updateSelectedPointsList();
+    }
+    return marker;
 }
 
 function updateMarkerData(updatedPoint) {
