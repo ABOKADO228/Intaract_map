@@ -79,7 +79,7 @@ OUTPUT_DIR = PROJECT_ROOT.parent / "output"
 BUILD_DIR = OUTPUT_DIR / "build"
 SPEC_DIR = OUTPUT_DIR
 ENTRY_POINT = BASE_DIR / "Карта скважин.py"
-ICON_PATH = BASE_DIR /"src"/"my_package"/ "html_templates" / "ico.ico"
+ICON_PATH = BASE_DIR / "html_templates" / "assets" / "ico.ico"
 
 
 EXCLUDED_MODULES: list[str] = [
@@ -534,6 +534,11 @@ def build():
     data_args = []
     binary_args = []
 
+
+    if not ICON_PATH.exists():
+        raise SystemExit(f"Файл иконки не найден: {ICON_PATH}")
+
+
     # Пользовательские ресурсы приложения
     data_args.extend(_as_data_arg(BASE_DIR / "html_templates", "html_templates"))
     data_args.extend(_as_data_arg(BASE_DIR / "data", "data"))
@@ -550,6 +555,7 @@ def build():
     entry_point = _prepare_ascii_entry_point()
 
     args = [
+        f"--icon={ICON_PATH}",
         "--noconfirm",
         "--clean",
         "--onedir",
@@ -563,7 +569,6 @@ def build():
         "--hidden-import=PyQt5.QtWebEngineCore",
         "--hidden-import=PyQt5.sip",
         "--hidden-import=sip",
-        f"--icon={ICON_PATH}",
     ]
 
     for module in EXCLUDED_MODULES:
