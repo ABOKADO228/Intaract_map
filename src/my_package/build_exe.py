@@ -559,6 +559,7 @@ def build():
         "--noconfirm",
         "--clean",
         "--onedir",
+        "--windowed",
         f"--name=Карта скважин",
         f"--distpath={OUTPUT_DIR}",
         f"--workpath={BUILD_DIR}",
