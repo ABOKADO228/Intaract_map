@@ -44,7 +44,7 @@ def build_point(index: int) -> dict:
     }
 
 
-def generate_test_data(count: int = 2000) -> None:
+def generate_test_data(count: int = 2980) -> None:
     manager = DataManager(DATA_DIR)
     points = [build_point(i) for i in range(count)]
     manager.update_points(points)
