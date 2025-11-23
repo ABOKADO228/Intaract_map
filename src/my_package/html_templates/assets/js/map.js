@@ -10,13 +10,17 @@ function escapeHtml(unsafe) {
 
 // Инициализация карты
 var map = L.map('map', {minZoom: 0, maxZoom: 18, preferCanvas: true}).setView([59.93, 30.34], 12);
-var markers = L.layerGroup().addTo(map);
+var markerRenderer = L.canvas({ padding: 0.5, tolerance: 2 });
+var markers = L.featureGroup().addTo(map);
 var selectedMarkerIds = [];
 var markerData = [];
 const markerIndex = new Map();
 
 let navTreeScheduled = false;
 let selectedListScheduled = false;
+let markerQueueHandle = null;
+const markerQueue = [];
+const MARKER_BATCH_SIZE = 400;
 
 function getMarkerById(id) {
     return markerIndex.get(id) || markerData.find(function(marker) { return marker.id === id; });
@@ -430,10 +434,30 @@ if (currentMode === 'online') {
 }
 }
 
-// Инициализация точек
-function initPoints() {
-if (typeof initialMarkerData !== 'undefined' && initialMarkerData.length > 0) {
-    initialMarkerData.forEach(function(point, index) {
+function scheduleMarkerQueue() {
+    if (markerQueueHandle) return;
+
+    if (typeof requestIdleCallback === 'function') {
+        markerQueueHandle = requestIdleCallback(processMarkerQueue, { timeout: 120 });
+    } else {
+        markerQueueHandle = setTimeout(processMarkerQueue, 16);
+    }
+}
+
+function enqueueMarkers(points) {
+    if (!points || !points.length) return;
+
+    markerQueue.push(...points);
+    scheduleMarkerQueue();
+}
+
+function processMarkerQueue(deadline) {
+    markerQueueHandle = null;
+    let processed = 0;
+    let shouldYield = false;
+
+    while (markerQueue.length && !shouldYield) {
+        const point = markerQueue.shift();
         addMarker(
             point.lat,
             point.lng,
@@ -445,29 +469,49 @@ if (typeof initialMarkerData !== 'undefined' && initialMarkerData.length > 0) {
             point.comments,
             point.color,
             point.fileName,
-            point.fileNames || []
+            point.fileNames || [],
+            true
         );
-    });
-    initialMarkerData = [];
 
-    updateNavTree();
-    updateSelectedPointsList();
+        processed++;
+
+        if (deadline && typeof deadline.timeRemaining === 'function') {
+            shouldYield = deadline.timeRemaining() <= 1;
+        } else {
+            shouldYield = processed >= MARKER_BATCH_SIZE;
+        }
+    }
+
+    if (markerQueue.length) {
+        scheduleMarkerQueue();
+    } else {
+        updateNavTree();
+        updateSelectedPointsList();
+    }
+}
+
+// Инициализация точек
+function initPoints() {
+if (typeof initialMarkerData !== 'undefined' && initialMarkerData.length > 0) {
+    enqueueMarkers(initialMarkerData);
+    initialMarkerData = [];
 }
 }
 
 // Добавление маркера
-function addMarker(lat, lng, name, id, deep, filters, debit, comments, color, fileName, fileNames) {
+function addMarker(lat, lng, name, id, deep, filters, debit, comments, color, fileName, fileNames, skipUiUpdate) {
 if (!color) color = '#4361ee';
 
-// Создаем кастомную иконку с выбранным цветом
-var markerIcon = L.divIcon({
-    html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
-    className: 'custom-marker',
-    iconSize: [15, 15],
-    iconAnchor: [7, 7]
+var marker = L.circleMarker([lat, lng], {
+    radius: 6,
+    color: '#ffffff',
+    weight: 2,
+    fillColor: color,
+    fillOpacity: 1,
+    renderer: markerRenderer
 });
 
-var marker = L.marker([lat, lng], {icon: markerIcon}).addTo(markers);
+markers.addLayer(marker);
 
 if (name) {
     // Добавляем количество файлов в popup
@@ -512,16 +556,19 @@ var markerInfo = {
 };
 
 markerData.push(markerInfo);
-markerIndex.set(id, markerInfo);
+    markerIndex.set(id, markerInfo);
 
 // Добавляем обработчик клика для показа информации
-marker.on('click', function() {
-    showPointInfo(markerInfo);
-    toggleMarkerSelection(markerInfo.id);
-});
+    marker.on('click', function() {
+        showPointInfo(markerInfo);
+        toggleMarkerSelection(markerInfo.id);
+    });
 
-updateNavTree();
-return marker;
+    if (!skipUiUpdate) {
+        updateNavTree();
+        updateSelectedPointsList();
+    }
+    return marker;
 }
 
 function updateMarkerData(updatedPoint) {
@@ -545,14 +592,10 @@ marker.fileName = updatedPoint.fileName || null;
 marker.lat = updatedPoint.lat !== undefined ? updatedPoint.lat : marker.lat;
 marker.lng = updatedPoint.lng !== undefined ? updatedPoint.lng : marker.lng;
 
-var markerIcon = L.divIcon({
-    html: `<div style="background-color: ${marker.color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${marker.color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
-    className: 'custom-marker',
-    iconSize: [15, 15],
-    iconAnchor: [7, 7]
-});
-
-marker.marker.setIcon(markerIcon);
+ marker.marker.setStyle({
+     fillColor: marker.color,
+     color: '#ffffff'
+ });
 marker.marker.setLatLng([marker.lat, marker.lng]);
 
 var fileCount = marker.fileNames ? marker.fileNames.length : (marker.fileName ? 1 : 0);
@@ -953,9 +996,9 @@ const markerInfo = getMarkerById(markerId);
 if (markerInfo) {
     markerInfo.visible = visible;
     if (visible) {
-        markerInfo.marker.addTo(map);
+        markers.addLayer(markerInfo.marker);
     } else {
-        map.removeLayer(markerInfo.marker);
+        markers.removeLayer(markerInfo.marker);
     }
 }
 }
@@ -1019,15 +1062,7 @@ selectedMarkerIds.forEach(function(markerId) {
     if (markerInfo) {
         markerInfo.color = color;
 
-        // Создаем новую иконку с обновленным цветом
-        var newIcon = L.divIcon({
-            html: `<div style="background-color: ${color}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 0 3px ${color}, 0 0 10px rgba(0,0,0,0.5);"></div>`,
-            className: 'custom-marker',
-            iconSize: [15, 15],
-            iconAnchor: [7, 7]
-        });
-
-        markerInfo.marker.setIcon(newIcon);
+        markerInfo.marker.setStyle({ fillColor: color });
     }
 });
 
@@ -1082,7 +1117,7 @@ colorChangeQueue = [];
 function removeMarker(id) {
 const index = markerData.findIndex(m => m.id === id);
 if (index !== -1) {
-    map.removeLayer(markerData[index].marker);
+    markers.removeLayer(markerData[index].marker);
     markerData.splice(index, 1);
     markerIndex.delete(id);
 
