@@ -99,11 +99,6 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
 
 function handleFiles(files) {
     for (let file of files) {
-        if (file.size > 50 * 1024 * 1024) { // 50MB limit
-            alert('Файл ' + file.name + ' слишком большой. Максимальный размер: 50MB');
-            continue;
-        }
-
         const reader = new FileReader();
         reader.onload = function(e) {
             selectedFiles.push({
