@@ -57,6 +57,19 @@ class TileManager:
             )
         ''')
 
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS tileset_tiles (
+                tileset TEXT,
+                url TEXT,
+                PRIMARY KEY (tileset, url)
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_tileset_tiles_url
+            ON tileset_tiles(url)
+        ''')
+
         # Проверяем и добавляем отсутствующие столбцы
         cursor.execute("PRAGMA table_info(tiles)")
         columns = [column[1] for column in cursor.fetchall()]
@@ -351,6 +364,15 @@ class TileManager:
                 "INSERT OR REPLACE INTO tilesets (name, bounds, min_zoom, max_zoom, created_date) VALUES (?, ?, ?, ?, ?)",
                 (name, json.dumps(bounds), min(zoom_levels), max(zoom_levels), self.get_current_timestamp())
             )
+
+            try:
+                cursor.executemany(
+                    "INSERT OR IGNORE INTO tileset_tiles (tileset, url) VALUES (?, ?)",
+                    [(name, url) for url in all_urls],
+                )
+            except sqlite3.OperationalError as e:
+                print(f"Ошибка сохранения связей тайлов с областью {name}: {e}")
+
             conn.commit()
             conn.close()
 
@@ -428,6 +450,69 @@ class TileManager:
             'tilesets': self.offline_tilesets
         }
 
+    def delete_tileset(self, name):
+        """Удаляет конкретную офлайн-область, не затрагивая остальные."""
+        try:
+            conn = sqlite3.connect(self.tiles_db)
+            cursor = conn.cursor()
+
+            try:
+                cursor.execute("SELECT url FROM tileset_tiles WHERE tileset = ?", (name,))
+            except sqlite3.OperationalError:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS tileset_tiles (
+                        tileset TEXT,
+                        url TEXT,
+                        PRIMARY KEY (tileset, url)
+                    )
+                ''')
+                cursor.execute("SELECT url FROM tileset_tiles WHERE tileset = ?", (name,))
+
+            urls = [row[0] for row in cursor.fetchall()]
+
+            if not urls:
+                cursor.execute("DELETE FROM tilesets WHERE name = ?", (name,))
+                cursor.execute("DELETE FROM tileset_tiles WHERE tileset = ?", (name,))
+                conn.commit()
+                conn.close()
+                self.load_offline_tilesets()
+                return True
+
+            for url in urls:
+                with self._cache_lock:
+                    self._tile_cache.pop(url, None)
+
+                cursor.execute(
+                    "SELECT COUNT(*) FROM tileset_tiles WHERE url = ? AND tileset != ?",
+                    (url, name),
+                )
+                other_references = cursor.fetchone()[0]
+
+                if other_references == 0:
+                    cursor.execute("SELECT filename FROM tiles WHERE url = ?", (url,))
+                    row = cursor.fetchone()
+                    if row:
+                        filename = row[0]
+                        file_path = self.tiles_dir / filename
+                        if file_path.exists():
+                            try:
+                                file_path.unlink()
+                            except Exception as e:
+                                print(f"Ошибка удаления файла {file_path}: {e}")
+
+                    cursor.execute("DELETE FROM tiles WHERE url = ?", (url,))
+
+            cursor.execute("DELETE FROM tileset_tiles WHERE tileset = ?", (name,))
+            cursor.execute("DELETE FROM tilesets WHERE name = ?", (name,))
+            conn.commit()
+            conn.close()
+
+            self.load_offline_tilesets()
+            return True
+        except Exception as e:
+            print(f"Ошибка удаления области {name}: {e}")
+            return False
+
     def clear_cache(self):
         """Очищает кэш тайлов"""
         with self._cache_lock:
@@ -439,6 +524,7 @@ class TileManager:
 
         cursor.execute("DELETE FROM tiles")
         cursor.execute("DELETE FROM tilesets")
+        cursor.execute("DELETE FROM tileset_tiles")
         conn.commit()
         conn.close()
 

@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QMessageBox,
+    QInputDialog,
     QPushButton,
     QProgressBar,
     QSpinBox,
@@ -206,8 +207,8 @@ class MapApp(QMainWindow):
         self.btn_offline_stats = QPushButton("Статистика офлайн-карт")
         self.btn_offline_stats.clicked.connect(self.show_offline_stats)
 
-        self.btn_clear_cache = QPushButton("Очистить кэш")
-        self.btn_clear_cache.clicked.connect(self.clear_offline_cache)
+        self.btn_remove_area = QPushButton("Удалить офлайн-область")
+        self.btn_remove_area.clicked.connect(self.delete_offline_area)
 
         buttons = [
             self.btn_add_point,
@@ -217,7 +218,7 @@ class MapApp(QMainWindow):
             self.btn_download_map,
             self.btn_download_visible,
             self.btn_offline_stats,
-            self.btn_clear_cache,
+            self.btn_remove_area,
         ]
 
         for btn in buttons:
@@ -986,6 +987,45 @@ QPushButton:pressed {
             stats_text += "\nНет сохраненных областей"
 
         QMessageBox.information(self, "Статистика офлайн-карт CartoDB Voyager", stats_text)
+
+    def delete_offline_area(self):
+        areas = list(self.tile_manager.offline_tilesets.keys())
+
+        if not areas:
+            QMessageBox.information(
+                self, "Удаление области", "Нет сохраненных офлайн-областей для удаления"
+            )
+            return
+
+        area, ok = QInputDialog.getItem(
+            self,
+            "Удаление офлайн-области",
+            "Выберите область для удаления:",
+            areas,
+            0,
+            False,
+        )
+
+        if ok and area:
+            reply = QMessageBox.question(
+                self,
+                "Подтверждение",
+                f"Удалить область '{area}' и связанные тайлы?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+
+            if reply == QMessageBox.Yes:
+                if self.tile_manager.delete_tileset(area):
+                    QMessageBox.information(
+                        self, "Успех", f"Область '{area}' удалена из кэша офлайн-карт"
+                    )
+                    self.statusBar().showMessage(
+                        f"Область '{area}' удалена из кэша офлайн-карт"
+                    )
+                else:
+                    QMessageBox.warning(
+                        self, "Ошибка", f"Не удалось удалить область '{area}'"
+                    )
 
     def clear_offline_cache(self):
         reply = QMessageBox.question(
