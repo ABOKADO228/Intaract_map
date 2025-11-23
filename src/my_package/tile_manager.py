@@ -450,3 +450,59 @@ class TileManager:
 
         self.offline_tilesets = {}
         return True
+
+    def _generate_urls_for_area(self, bounds, zoom_levels):
+        min_lat, min_lon, max_lat, max_lon = bounds
+        urls = []
+
+        for zoom in zoom_levels:
+            min_tile_x = self.lon_to_tile_x(min_lon, zoom)
+            max_tile_x = self.lon_to_tile_x(max_lon, zoom)
+            min_tile_y = self.lat_to_tile_y(max_lat, zoom)
+            max_tile_y = self.lat_to_tile_y(min_lat, zoom)
+
+            for x in range(min_tile_x, max_tile_x + 1):
+                for y in range(min_tile_y, max_tile_y + 1):
+                    urls.append(self.get_tile_url(zoom, x, y))
+
+        return urls
+
+    def remove_tileset(self, name):
+        if name not in self.offline_tilesets:
+            return None
+
+        tileset = self.offline_tilesets[name]
+        zoom_levels = range(tileset['min_zoom'], tileset['max_zoom'] + 1)
+        urls = self._generate_urls_for_area(tileset['bounds'], zoom_levels)
+
+        conn = sqlite3.connect(self.tiles_db)
+        cursor = conn.cursor()
+
+        removed_tiles = 0
+        removed_files = 0
+
+        for url in urls:
+            with self._cache_lock:
+                self._tile_cache.pop(url, None)
+                self._popular_tiles.discard(url)
+
+            cursor.execute("SELECT filename FROM tiles WHERE url = ?", (url,))
+            row = cursor.fetchone()
+            cursor.execute("DELETE FROM tiles WHERE url = ?", (url,))
+            removed_tiles += cursor.rowcount if cursor.rowcount != -1 else 0
+
+            if row:
+                file_path = self.tiles_dir / row[0]
+                if file_path.exists():
+                    try:
+                        file_path.unlink()
+                        removed_files += 1
+                    except Exception as e:
+                        print(f"Ошибка удаления файла {file_path}: {e}")
+
+        cursor.execute("DELETE FROM tilesets WHERE name = ?", (name,))
+        conn.commit()
+        conn.close()
+
+        self.load_offline_tilesets()
+        return removed_tiles, removed_files

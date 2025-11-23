@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -206,8 +207,8 @@ class MapApp(QMainWindow):
         self.btn_offline_stats = QPushButton("Статистика офлайн-карт")
         self.btn_offline_stats.clicked.connect(self.show_offline_stats)
 
-        self.btn_clear_cache = QPushButton("Очистить кэш")
-        self.btn_clear_cache.clicked.connect(self.clear_offline_cache)
+        self.btn_delete_area = QPushButton("Удалить область из кэша")
+        self.btn_delete_area.clicked.connect(self.remove_offline_area)
 
         buttons = [
             self.btn_add_point,
@@ -217,7 +218,7 @@ class MapApp(QMainWindow):
             self.btn_download_map,
             self.btn_download_visible,
             self.btn_offline_stats,
-            self.btn_clear_cache,
+            self.btn_delete_area,
         ]
 
         for btn in buttons:
@@ -987,23 +988,55 @@ QPushButton:pressed {
 
         QMessageBox.information(self, "Статистика офлайн-карт CartoDB Voyager", stats_text)
 
-    def clear_offline_cache(self):
+    def remove_offline_area(self):
+        if not self.tile_manager.offline_tilesets:
+            QMessageBox.information(self, "Удаление области", "Нет сохраненных областей")
+            return
+
+        available_areas = sorted(self.tile_manager.offline_tilesets.keys())
+        area_name, ok = QInputDialog.getItem(
+            self,
+            "Удаление области",
+            "Выберите область для удаления из офлайн-кэша:",
+            available_areas,
+            0,
+            False,
+        )
+
+        if not ok or not area_name:
+            return
+
         reply = QMessageBox.question(
             self,
             "Подтверждение",
-            "Вы действительно хотите очистить кэш офлайн-карт CartoDB Voyager?\n"
-            "Все скачанные тайлы будут удалены.",
+            f"Удалить область '{area_name}' из офлайн-кэша CartoDB Voyager?",
             QMessageBox.Yes | QMessageBox.No,
         )
 
-        if reply == QMessageBox.Yes:
-            if self.tile_manager.clear_cache():
-                QMessageBox.information(
-                    self, "Успех", "Кэш офлайн-карт CartoDB Voyager очищен"
-                )
-                self.statusBar().showMessage("Кэш офлайн-карт CartoDB Voyager очищен")
-            else:
-                QMessageBox.warning(self, "Ошибка", "Не удалось очистить кэш")
+        if reply != QMessageBox.Yes:
+            return
+
+        result = self.tile_manager.remove_tileset(area_name)
+        if result:
+            removed_tiles, removed_files = result
+            QMessageBox.information(
+                self,
+                "Удаление завершено",
+                (
+                    f"Область '{area_name}' удалена.\n"
+                    f"Удалено записей о тайлах: {removed_tiles}.\n"
+                    f"Удалено файлов: {removed_files}."
+                ),
+            )
+            self.statusBar().showMessage(
+                f"Область '{area_name}' удалена из офлайн-кэша ({removed_tiles} записей)"
+            )
+        else:
+            QMessageBox.warning(
+                self,
+                "Ошибка",
+                f"Не удалось удалить область '{area_name}'. Она могла быть удалена ранее.",
+            )
 
     def force_offline_mode(self):
         self.current_mode = "offline"
