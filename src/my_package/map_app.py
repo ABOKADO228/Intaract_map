@@ -4,10 +4,10 @@ import re
 import sys
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtCore import Qt, QUrl, QEvent, QObject
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtGui import QDoubleValidator
+from PyQt5.QtGui import QDoubleValidator, QKeySequence
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
@@ -611,6 +611,24 @@ QPushButton:pressed {
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         layout.addWidget(buttons)
 
+        class _CoordPasteFilter(QObject):
+            def __init__(self, on_paste):
+                super().__init__()
+                self._on_paste = on_paste
+
+            def eventFilter(self, obj, event):
+                if event.type() in (QEvent.KeyPress, QEvent.ShortcutOverride):
+                    if event.matches(QKeySequence.Paste):
+                        clipboard_text = QApplication.clipboard().text()
+                        if self._on_paste(clipboard_text):
+                            return True
+                elif event.type() == QEvent.Paste:
+                    text = event.mimeData().text() if event.mimeData() else QApplication.clipboard().text()
+                    if self._on_paste(text):
+                        return True
+
+                return super().eventFilter(obj, event)
+
         def handle_combined_input(text: str) -> bool:
             coords = self._parse_coord_pair(text)
             if coords is None:
@@ -628,6 +646,11 @@ QPushButton:pressed {
 
         lat_input.textChanged.connect(handle_combined_input)
         lng_input.textChanged.connect(handle_combined_input)
+
+        paste_filter = _CoordPasteFilter(handle_combined_input)
+        lat_input.installEventFilter(paste_filter)
+        lng_input.installEventFilter(paste_filter)
+        dialog._coord_paste_filter = paste_filter  # noqa: SLF001 - keep reference alive
 
         def handle_accept():
             lat_text = lat_input.text().replace(",", ".").strip()
