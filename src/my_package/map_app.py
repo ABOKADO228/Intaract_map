@@ -644,9 +644,6 @@ QPushButton:pressed {
             lng_input.blockSignals(False)
             return True
 
-        lat_input.textChanged.connect(handle_combined_input)
-        lng_input.textChanged.connect(handle_combined_input)
-
         paste_filter = _CoordPasteFilter(handle_combined_input)
         lat_input.installEventFilter(paste_filter)
         lng_input.installEventFilter(paste_filter)
