@@ -592,13 +592,16 @@ QPushButton:pressed {
         layout = QVBoxLayout(dialog)
         layout.addWidget(QLabel("Введите широту и долготу точки:"))
 
+        updating_values = {"active": False}
+
         def apply_coord_values(lat_value: float, lng_value: float) -> None:
-            lat_input.blockSignals(True)
-            lng_input.blockSignals(True)
+            if updating_values["active"]:
+                return
+
+            updating_values["active"] = True
             lat_input.setText(f"{lat_value}")
             lng_input.setText(f"{lng_value}")
-            lat_input.blockSignals(False)
-            lng_input.blockSignals(False)
+            updating_values["active"] = False
 
         def handle_combined_input(text: str) -> bool:
             coords = self._parse_coord_pair(text)
@@ -626,6 +629,9 @@ QPushButton:pressed {
         lng_input = _CoordLineEdit(handle_combined_input, dialog)
         lng_input.setPlaceholderText("Долгота, например 30.3141")
         lng_input.setValidator(QDoubleValidator(-180.0, 180.0, 8, lng_input))
+
+        lat_input.textEdited.connect(handle_combined_input)
+        lng_input.textEdited.connect(handle_combined_input)
 
         coords_layout = QGridLayout()
         coords_layout.addWidget(QLabel("Широта"), 0, 0)
