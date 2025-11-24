@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -610,6 +611,24 @@ QPushButton:pressed {
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         layout.addWidget(buttons)
 
+        def handle_combined_input(text: str) -> bool:
+            coords = self._parse_coord_pair(text)
+            if coords is None:
+                return False
+
+            lat_value, lng_value = coords
+
+            lat_input.blockSignals(True)
+            lng_input.blockSignals(True)
+            lat_input.setText(f"{lat_value}")
+            lng_input.setText(f"{lng_value}")
+            lat_input.blockSignals(False)
+            lng_input.blockSignals(False)
+            return True
+
+        lat_input.textChanged.connect(handle_combined_input)
+        lng_input.textChanged.connect(handle_combined_input)
+
         def handle_accept():
             lat_text = lat_input.text().replace(",", ".").strip()
             lng_text = lng_input.text().replace(",", ".").strip()
@@ -639,6 +658,20 @@ QPushButton:pressed {
         buttons.rejected.connect(dialog.reject)
 
         dialog.exec_()
+
+    @staticmethod
+    def _parse_coord_pair(text: str) -> tuple[float, float] | None:
+        numbers = re.findall(r"[-+]?\d+(?:[\.,]\d+)?", text or "")
+        if len(numbers) < 2:
+            return None
+
+        try:
+            lat_value = float(numbers[0].replace(",", "."))
+            lng_value = float(numbers[1].replace(",", "."))
+        except ValueError:
+            return None
+
+        return lat_value, lng_value
 
     def remove_point(self, point_id):
         point = next((p for p in self.points if p.get("id") == point_id), None)
