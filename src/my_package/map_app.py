@@ -1,12 +1,12 @@
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtGui import QDoubleValidator
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
@@ -591,13 +591,44 @@ QPushButton:pressed {
         layout = QVBoxLayout(dialog)
         layout.addWidget(QLabel("Введите широту и долготу точки:"))
 
-        lat_input = QLineEdit()
-        lat_input.setPlaceholderText("Широта, например 59.9386")
-        lat_input.setValidator(QDoubleValidator(-90.0, 90.0, 8, lat_input))
+        updating_values = {"active": False}
 
-        lng_input = QLineEdit()
+        def apply_coord_values(lat_value: float, lng_value: float) -> None:
+            if updating_values["active"]:
+                return
+
+            updating_values["active"] = True
+            lat_input.setText(f"{lat_value}")
+            lng_input.setText(f"{lng_value}")
+            updating_values["active"] = False
+
+        def handle_combined_input(text: str) -> bool:
+            coords = self._parse_coord_pair(text)
+            if coords is None:
+                return False
+
+            lat_value, lng_value = coords
+            apply_coord_values(lat_value, lng_value)
+            return True
+
+        class _CoordLineEdit(QLineEdit):
+            def __init__(self, on_paste, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self._on_paste = on_paste
+
+            def insertFromMimeData(self, source):
+                if source and self._on_paste(source.text()):
+                    return
+                super().insertFromMimeData(source)
+
+        lat_input = _CoordLineEdit(handle_combined_input, dialog)
+        lat_input.setPlaceholderText("Широта, например 59.9386")
+
+        lng_input = _CoordLineEdit(handle_combined_input, dialog)
         lng_input.setPlaceholderText("Долгота, например 30.3141")
-        lng_input.setValidator(QDoubleValidator(-180.0, 180.0, 8, lng_input))
+
+        lat_input.textEdited.connect(handle_combined_input)
+        lng_input.textEdited.connect(handle_combined_input)
 
         coords_layout = QGridLayout()
         coords_layout.addWidget(QLabel("Широта"), 0, 0)
@@ -609,7 +640,6 @@ QPushButton:pressed {
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         layout.addWidget(buttons)
-
         def handle_accept():
             lat_text = lat_input.text().replace(",", ".").strip()
             lng_text = lng_input.text().replace(",", ".").strip()
@@ -639,6 +669,20 @@ QPushButton:pressed {
         buttons.rejected.connect(dialog.reject)
 
         dialog.exec_()
+
+    @staticmethod
+    def _parse_coord_pair(text: str) -> tuple[float, float] | None:
+        numbers = re.findall(r"[-+]?\d+(?:[\.,]\d+)?", text or "")
+        if len(numbers) < 2:
+            return None
+
+        try:
+            lat_value = float(numbers[0].replace(",", "."))
+            lng_value = float(numbers[1].replace(",", "."))
+        except ValueError:
+            return None
+
+        return lat_value, lng_value
 
     def remove_point(self, point_id):
         point = next((p for p in self.points if p.get("id") == point_id), None)
