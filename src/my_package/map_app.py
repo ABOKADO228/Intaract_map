@@ -7,7 +7,6 @@ from pathlib import Path
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtGui import QDoubleValidator
 from PyQt5.QtWidgets import (
     QApplication,
     QDialog,
@@ -624,11 +623,9 @@ QPushButton:pressed {
 
         lat_input = _CoordLineEdit(handle_combined_input, dialog)
         lat_input.setPlaceholderText("Широта, например 59.9386")
-        lat_input.setValidator(QDoubleValidator(-90.0, 90.0, 8, lat_input))
 
         lng_input = _CoordLineEdit(handle_combined_input, dialog)
         lng_input.setPlaceholderText("Долгота, например 30.3141")
-        lng_input.setValidator(QDoubleValidator(-180.0, 180.0, 8, lng_input))
 
         lat_input.textEdited.connect(handle_combined_input)
         lng_input.textEdited.connect(handle_combined_input)
